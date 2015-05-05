@@ -32,7 +32,7 @@ library
                  , Text.OPML.Stream.Render
                  , Text.OPML.Types
   build-depends:
-      base >= 4.8
+      base >= 4.8 && < 5
     , case-insensitive
     , conduit
     , containers
