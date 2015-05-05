@@ -17,7 +17,7 @@ import           Paths_opml_conduit
 import           Test.Tasty
 import           Test.Tasty.HUnit
 import           Test.Tasty.QuickCheck
-import           Text.OPML.Arbitrary
+import           Text.OPML.Arbitrary          ()
 import           Text.OPML.Stream.Parse
 import           Text.OPML.Stream.Render
 import           Text.OPML.Types
