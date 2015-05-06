@@ -73,7 +73,7 @@ parseVersion' v = case filter (onull . snd) . readP_to_S parseVersion $ unpack v
   _ -> throwM $ InvalidVersion v
 
 parseDecimal :: (MonadThrow m, Integral a) => Text -> m a
-parseDecimal t = case (filter (\(_, b) -> onull b) . readSigned readDec $ unpack t) of
+parseDecimal t = case filter (onull . snd) . readSigned readDec $ unpack t of
   (result, _):_ -> return result
   _             -> throwM $ InvalidDecimal t
 
@@ -109,7 +109,7 @@ opmlHeadBuilder = [ ("dateCreated",     \v h -> set opmlCreated_ <$> (Just <$> p
                   ]
 
 -- | Parse the @\<head\>@ section.
--- This function is more lenient than what the standards demands on the following points:
+-- This function is more lenient than what the standard demands on the following points:
 --
 -- - each sub-element may be repeated, in which case only the last occurrence is taken into account;
 -- - each unknown sub-element is ignored.
@@ -123,7 +123,7 @@ parseOpmlHead = tagName "head" ignoreAttrs $ \_ -> foldM (\a f' -> f' a) def =<<
 
 
 parseCategories :: Text -> [[NE Text]]
-parseCategories = filter (not . onull) . map (catMaybes . map notEmpty . split (== '/')) . split (== ',')
+parseCategories = filter (not . onull) . map (mapMaybe notEmpty . split (== '/')) . split (== ',')
 
 -- | Parse an @\<outline\>@ section.
 -- The value of type attributes are not case-sensitive, that is @type=\"LINK\"@ has the same meaning as @type="link"@.

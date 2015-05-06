@@ -14,6 +14,7 @@ import           Data.Version
 
 import           Paths_opml_conduit
 
+import qualified Language.Haskell.HLint       as HLint (hlint)
 import           Test.Tasty
 import           Test.Tasty.HUnit
 import           Test.Tasty.QuickCheck
@@ -28,6 +29,7 @@ main :: IO ()
 main = defaultMain $ testGroup "Tests"
   [ unitTests
   , properties
+  , hlint
   ]
 
 unitTests :: TestTree
@@ -46,6 +48,13 @@ properties = testGroup "Properties"
   , inverseProperty
   ]
 
+
+hlint :: TestTree
+hlint = testCase "HLint check" $ do
+  result <- HLint.hlint [ "Data", "test", "Text" ]
+  null result @?= True
+
+
 categoriesCase :: TestTree
 categoriesCase = testCase "Parse categories list" $ do
   dataFile <- fromString <$> getDataFileName "data/category.opml"
@@ -56,6 +65,7 @@ categoriesCase = testCase "Parse categories list" $ do
   show (result ^. head_ . opmlCreated_) @?= "Just 2005-10-31 19:23:00 UTC"
   length (result ^.. outlines_ . traverse . traverse . _OpmlOutlineGeneric) @?= 1
   map (map length .levels) (result ^. outlines_) @?= [[1]]
+
 
 directoryCase :: TestTree
 directoryCase = testCase "Parse directory tree" $ do
@@ -73,6 +83,7 @@ directoryCase = testCase "Parse directory tree" $ do
   (result ^. head_ . window_) @?= [(Top',105), (Left',466), (Bottom',386), (Right',964)]
   length (result ^.. outlines_ . traverse . traverse . _OpmlOutlineLink) @?= 8
   map (map length .levels) (result ^. outlines_) @?= [[1], [1], [1], [1], [1], [1], [1], [1]]
+
 
 placesCase :: TestTree
 placesCase = testCase "Parse places list" $ do

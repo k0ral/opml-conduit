@@ -1,10 +1,10 @@
--- | This module re-exports commonly used modules.
-module Text.OPML
-  ( module Text.OPML.Stream.Parse
-  , module Text.OPML.Stream.Render
-  , module Text.OPML.Types
-  ) where
+-- | This module re-exports commonly used modules:
+--
+-- - 'Text.OPML.Stream.Parse'
+-- - 'Text.OPML.Stream.Render'
+-- - 'Text.OPML.Types'
+module Text.OPML (module X) where
 
-import           Text.OPML.Stream.Parse
-import           Text.OPML.Stream.Render
-import           Text.OPML.Types
+import           Text.OPML.Stream.Parse  as X
+import           Text.OPML.Stream.Render as X
+import           Text.OPML.Types         as X

@@ -45,13 +45,13 @@ instance Arbitrary (OpmlGen URI) where
               where genUriPath = ("/" ++) <$> listOf1 genAlphaNum
                     genUriQuery = oneof [return "", ("?" ++) <$> listOf1 genAlphaNum]
                     genUriFragment = oneof [return "", ("#" ++) <$> listOf1 genAlphaNum]
-                    genUriScheme = (\x -> x ++ ":") <$> listOf1 (choose('a', 'z'))
+                    genUriScheme = (++ ":") <$> listOf1 (choose('a', 'z'))
   -- shrink = genericShrink
 
 -- | Reasonable enough 'URIAuth' generator.
 instance Arbitrary (OpmlGen URIAuth) where
   arbitrary = do
-    userInfo <- oneof [return "", fmap (\x -> x ++ "@") $ listOf1 genAlphaNum]
+    userInfo <- oneof [return "", (++ "@") <$> listOf1 genAlphaNum]
     regName <- listOf1 genAlphaNum
     port <- oneof [return "", (\x -> ":" ++ x) . show <$> choose(1 :: Int, 65535)]
     return . OpmlGen $ URIAuth userInfo regName port
