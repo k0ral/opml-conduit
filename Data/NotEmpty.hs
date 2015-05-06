@@ -1,3 +1,4 @@
+{-# LANGUAGE DeriveGeneric #-}
 module Data.NotEmpty
   ( NE()
   , notEmpty
@@ -8,13 +9,16 @@ module Data.NotEmpty
 -- {{{ Imports
 import           Control.Monad.Catch
 
+import           Data.Hashable
 import           Data.Semigroup
+
+import           GHC.Generics
 
 import           Test.QuickCheck
 -- }}}
 
 -- | For a monoid @s@, @NE s@ is @s@ without its neutral element 'mempty'.
-newtype NE s = NE s
+newtype NE s = NE s deriving(Generic)
 
 instance (Eq s) => Eq (NE s) where
   (NE a) == (NE b) = a == b
@@ -28,6 +32,8 @@ instance (Show s) => Show (NE s) where
 
 instance (Eq s, Monoid s, Arbitrary s) => Arbitrary (NE s) where
   arbitrary = NE <$> arbitrary `suchThat` (/= mempty)
+
+instance (Hashable s) => Hashable (NE s)
 
 -- | Smart constructor.
 notEmpty :: (MonadThrow m, Eq s, Monoid s) => s -> m (NE s)

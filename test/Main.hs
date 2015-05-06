@@ -7,7 +7,8 @@ import           Control.Monad.Identity
 import           Control.Monad.Trans.Resource
 
 import           Data.Conduit
-import           Data.Conduit.Combinators     as Conduit hiding (length, map)
+import           Data.Conduit.Combinators     as Conduit hiding (length, map,
+                                                          null)
 import           Data.String
 import           Data.Tree
 import           Data.Version

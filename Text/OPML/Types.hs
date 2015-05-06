@@ -67,7 +67,9 @@ import           Control.Lens.TH
 import           Control.Monad
 
 import           Data.Default
-import           Data.Map
+import           Data.Hashable
+import           Data.Hashable.Time  ()
+import           Data.HashMap.Lazy
 import           Data.NotEmpty
 import           Data.Text
 import           Data.Time.Clock
@@ -83,7 +85,9 @@ import           Test.QuickCheck
 import           Text.OPML.Arbitrary
 -- }}}
 
-data Direction = Top' | Left' | Bottom' | Right' deriving(Eq, Generic, Ord, Show)
+data Direction = Top' | Left' | Bottom' | Right' deriving(Eq, Generic, Show)
+
+instance Hashable Direction
 
 instance Arbitrary Direction where
   arbitrary = elements [Top', Left', Right', Bottom']
@@ -101,13 +105,14 @@ declareLenses [d|
     , docs_ :: Maybe URI
     , expansionState_ :: [Int]
     , vertScrollState_ :: Maybe Int
-    , window_ :: Map Direction Int
+    , window_ :: HashMap Direction Int
     }
   |]
 
 deriving instance Eq OpmlHead
 deriving instance Generic OpmlHead
 deriving instance Show OpmlHead
+-- instance Hashable OpmlHead
 
 -- | Use 'def' as a smart constructor. All fields are set to 'mempty'.
 instance Default OpmlHead where
@@ -148,6 +153,7 @@ declareLenses [d|
 deriving instance Eq OutlineBase
 deriving instance Generic OutlineBase
 deriving instance Show OutlineBase
+instance Hashable OutlineBase
 
 instance Arbitrary OutlineBase where
   arbitrary = OutlineBase <$> arbitrary
@@ -176,6 +182,7 @@ declareLenses [d|
 deriving instance Eq OutlineSubscription
 deriving instance Generic OutlineSubscription
 deriving instance Show OutlineSubscription
+-- instance Hashable OutlineSubscription
 
 instance Arbitrary OutlineSubscription where
   arbitrary = OutlineSubscription <$> (unwrap <$> arbitrary)
@@ -201,6 +208,7 @@ declarePrisms [d|
 deriving instance Eq OpmlOutline
 deriving instance Generic OpmlOutline
 deriving instance Show OpmlOutline
+-- instance Hashable OpmlOutline
 
 instance Arbitrary OpmlOutline where
   arbitrary = oneof [ OpmlOutlineGeneric <$> arbitrary <*> arbitrary
