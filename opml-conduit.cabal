@@ -25,12 +25,13 @@ source-repository head
     location: git://github.com/k0ral/opml-conduit.git
 
 library
-  exposed-modules: Data.NotEmpty
-                 , Text.OPML
-                 , Text.OPML.Arbitrary
-                 , Text.OPML.Stream.Parse
-                 , Text.OPML.Stream.Render
-                 , Text.OPML.Types
+  exposed-modules:
+    Data.NotEmpty
+    Text.OPML
+    Text.OPML.Arbitrary
+    Text.OPML.Stream.Parse
+    Text.OPML.Stream.Render
+    Text.OPML.Types
   build-depends:
       base >= 4.8 && < 5
     , case-insensitive
