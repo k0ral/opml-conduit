@@ -23,11 +23,12 @@ import           Control.Monad.Catch
 import           Data.CaseInsensitive         hiding (map)
 import           Data.Conduit
 import           Data.Containers
+import           Data.List.NonEmpty           hiding (filter, map)
 import           Data.Map                     (Map)
 import           Data.Maybe
 import           Data.Monoid.Textual          hiding (map)
 import           Data.MonoTraversable
-import           Data.NotEmpty
+import           Data.NonNull
 import           Data.Text                    (Text, strip, unpack)
 import           Data.Time.Clock
 import           Data.Time.LocalTime
@@ -48,7 +49,8 @@ import           Text.ParserCombinators.ReadP (readP_to_S)
 import           Text.XML.Stream.Parse
 -- }}}
 
-data OpmlException = InvalidBool Text
+data OpmlException = MissingText
+                   | InvalidBool Text
                    | InvalidDecimal Text
                    | InvalidTime Text
                    | InvalidURI Text
@@ -56,6 +58,7 @@ data OpmlException = InvalidBool Text
 
 deriving instance Eq OpmlException
 instance Show OpmlException where
+  show MissingText = "An outline is missing the 'text' attribute."
   show (InvalidBool t) = "Invalid boolean: " ++ unpack t
   show (InvalidDecimal t) = "Invalid decimal: " ++ unpack t
   show (InvalidURI t) = "Invalid URI: " ++ unpack t
@@ -122,8 +125,8 @@ parseOpmlHead = tagName "head" ignoreAttrs $ \_ -> foldM (\a f' -> f' a) def =<<
         unknownTag = tagPredicate (const True) ignoreAttrs $ \_ -> return return
 
 
-parseCategories :: Text -> [[NE Text]]
-parseCategories = filter (not . onull) . map (mapMaybe notEmpty . split (== '/')) . split (== ',')
+parseCategories :: Text -> [NonEmpty (NonNull Text)]
+parseCategories = mapMaybe (nonEmpty . mapMaybe fromNullable . split (== '/')) . split (== ',')
 
 -- | Parse an @\<outline\>@ section.
 -- The value of type attributes are not case-sensitive, that is @type=\"LINK\"@ has the same meaning as @type="link"@.
@@ -151,13 +154,14 @@ parseOpmlOutline = tagName "outline" attributes handler
         handler (_, b, Just s, _) = Node <$> (OpmlOutlineSubscription <$> baseHandler b <*> subscriptionHandler s) <*> pure []
         handler (_, b, _, Just l) = Node <$> (OpmlOutlineLink <$> baseHandler b <*> parseURI l) <*> pure []
         handler (otype, b, _, _) = Node <$> (OpmlOutlineGeneric <$> baseHandler b <*> pure (fromMaybe mempty otype))
-                                           <*> many parseOpmlOutline
-        baseHandler (t, comment, breakpoint, created, category) =
-          OutlineBase <$> notEmpty t
-                      <*> pure (parseBool =<< comment)
-                      <*> pure (parseBool =<< breakpoint)
-                      <*> pure (parseTime =<< created)
-                      <*> pure (parseCategories =<< otoList category)
+                                        <*> many parseOpmlOutline
+        baseHandler (t, comment, breakpoint, created, category) = do
+          text <- maybe (throwM MissingText) return $ fromNullable t
+          return $ OutlineBase text
+                               (parseBool =<< comment)
+                               (parseBool =<< breakpoint)
+                               (parseTime =<< created)
+                               (parseCategories =<< otoList category)
         subscriptionHandler (uri, html, description, language, title, version) =
           OutlineSubscription <$> parseURI uri
                               <*> pure (parseURI =<< html)

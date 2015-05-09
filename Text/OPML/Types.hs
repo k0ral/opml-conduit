@@ -70,7 +70,8 @@ import           Data.Default
 import           Data.Hashable
 import           Data.Hashable.Time  ()
 import           Data.HashMap.Lazy
-import           Data.NotEmpty
+import           Data.List.NonEmpty
+import           Data.NonNull
 import           Data.Text
 import           Data.Time.Clock
 import           Data.Time.LocalTime ()
@@ -84,6 +85,10 @@ import           Network.URI
 import           Test.QuickCheck
 import           Text.OPML.Arbitrary
 -- }}}
+
+-- Orphan instance
+instance (Hashable a) => Hashable (NonNull a) where
+  hashWithSalt s = hashWithSalt s . toNullable
 
 data Direction = Top' | Left' | Bottom' | Right' deriving(Eq, Generic, Show)
 
@@ -142,11 +147,11 @@ instance Arbitrary OpmlHead where
 
 declareLenses [d|
   data OutlineBase = OutlineBase
-    { text_ :: NE Text
+    { text_ :: NonNull Text
     , isComment_ :: Maybe Bool
     , isBreakpoint_ :: Maybe Bool
     , outlineCreated_ :: Maybe UTCTime
-    , categories_ :: [[NE Text]]
+    , categories_ :: [NonEmpty (NonNull Text)] -- ^
     }
   |]
 
@@ -156,15 +161,19 @@ deriving instance Show OutlineBase
 instance Hashable OutlineBase
 
 instance Arbitrary OutlineBase where
-  arbitrary = OutlineBase <$> arbitrary
+  arbitrary = OutlineBase <$> genNonNull
                           <*> arbitrary
                           <*> arbitrary
                           <*> (unwrap <$> arbitrary)
                           <*> (unwrap <$> arbitrary)
-  shrink = genericShrink
+  shrink (OutlineBase _ b c d e) = OutlineBase <$> []
+                                               <*> shrink b
+                                               <*> shrink c
+                                               <*> shrink d
+                                               <*> (unwrap <$> shrink (OpmlGen e))
 
 -- | Smart constructor for 'OutlineBase'.
-mkOutlineBase :: NE Text -> OutlineBase
+mkOutlineBase :: NonNull Text -> OutlineBase
 mkOutlineBase t = OutlineBase t mzero mzero mzero mzero
 
 

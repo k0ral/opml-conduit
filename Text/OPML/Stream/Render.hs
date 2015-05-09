@@ -16,9 +16,9 @@ import           Control.Lens.Getter
 import           Control.Monad
 
 import           Data.Conduit
+import           Data.List.NonEmpty     hiding (filter, map)
 import           Data.Monoid
-import           Data.MonoTraversable
-import           Data.NotEmpty
+import           Data.NonNull
 import           Data.Text              (Text, intercalate, pack, toLower)
 import           Data.Time.Clock
 import           Data.Time.LocalTime
@@ -46,8 +46,8 @@ toMaybe s | s == mempty = mempty
 formatTime :: UTCTime -> Text
 formatTime = formatTimeRFC822 . utcToZonedTime utc
 
-formatCategories :: [[NE Text]] -> Maybe Text
-formatCategories = toMaybe . intercalate "," . map (intercalate "/") . filter (not . onull) . map (map original)
+formatCategories :: [NonEmpty (NonNull Text)] -> Maybe Text
+formatCategories = toMaybe . intercalate "," . map (intercalate "/" . toList . fmap toNullable)
 
 formatBool :: Bool -> Text
 formatBool = toLower . tshow
@@ -80,7 +80,7 @@ renderOpmlOutline (Node outline subOutlines) = tag "outline" attributes $ mapM_ 
           OpmlOutlineGeneric b t -> baseAttr b <> optionalAttr "type" (toMaybe t)
           OpmlOutlineLink b uri -> baseAttr b <> attr "type" "link" <> attr "url" (tshow uri)
           OpmlOutlineSubscription b s -> baseAttr b <> subscriptionAttr s
-        baseAttr b = attr "text" (original $ b^.text_)
+        baseAttr b = attr "text" (toNullable $ b^.text_)
                      <> optionalAttr "isComment" (formatBool <$> b^.isComment_)
                      <> optionalAttr "isBreakpoint" (formatBool <$> b^.isBreakpoint_)
                      <> optionalAttr "created" (formatTime <$> b^.outlineCreated_)

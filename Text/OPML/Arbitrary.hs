@@ -1,6 +1,7 @@
 {-# LANGUAGE DeriveGeneric      #-}
 {-# LANGUAGE FlexibleContexts   #-}
 {-# LANGUAGE FlexibleInstances  #-}
+{-# LANGUAGE OverloadedStrings  #-}
 {-# LANGUAGE StandaloneDeriving #-}
 -- | External 'Arbitrary' instances used by OPML types.
 -- All instances are defined through the 'OpmlGen' wrapper to avoid conflicts.
@@ -8,8 +9,11 @@ module Text.OPML.Arbitrary where
 
 -- {{{ Imports
 import           Data.Char
+import           Data.List.NonEmpty
 import           Data.Maybe
-import           Data.NotEmpty
+import           Data.MonoTraversable      (Element)
+import           Data.NonNull
+import           Data.Sequences            (SemiSequence)
 import           Data.Text                 (Text, find)
 import           Data.Time.Clock
 import           Data.Version
@@ -29,10 +33,6 @@ instance (Arbitrary (OpmlGen a)) => Arbitrary (OpmlGen (Maybe a)) where
     a                <- arbitrary :: Gen (Maybe ())
     (OpmlGen result) <- arbitrary
     return . OpmlGen $ maybe Nothing (const $ Just result) a
-
--- | Alpha-numeric generator.
-genAlphaNum :: Gen Char
-genAlphaNum = oneof [choose('a', 'z'), suchThat arbitrary isDigit]
 
 -- | OPML version may only be @1.0@, @1.1@ or @2.0@
 instance Arbitrary (OpmlGen Version) where
@@ -67,6 +67,16 @@ instance Arbitrary (OpmlGen UTCTime) where
 
 -- | Generates 'OutlineBase''s categories.
 -- This generator makes sure that the result has no @,@ nor @/@ characters, since those are used as separators.
-instance Arbitrary (OpmlGen [[NE Text]]) where
-  arbitrary = OpmlGen <$> listOf (listOf1 $ arbitrary `suchThat` (isNothing . find (\c -> c == ',' || c == '/') . original))
-  shrink = genericShrink
+instance Arbitrary (OpmlGen [NonEmpty (NonNull Text)]) where
+  arbitrary = OpmlGen <$> listOf genCategoryPath
+    where genCategory = genNonNull `suchThat` (isNothing . find (\c -> c == ',' || c == '/') . toNullable)
+          genCategoryPath = (:|) <$> genCategory <*> listOf genCategory
+  -- shrink = genericShrink
+
+-- | Alpha-numeric generator.
+genAlphaNum :: Gen Char
+genAlphaNum = oneof [choose('a', 'z'), suchThat arbitrary isDigit]
+
+-- | Non-empty mono-foldable
+genNonNull :: (SemiSequence a, Arbitrary (Element a), Arbitrary a) => Gen (NonNull a)
+genNonNull = ncons <$> arbitrary <*> arbitrary

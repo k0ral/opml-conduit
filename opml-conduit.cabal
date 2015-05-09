@@ -10,7 +10,6 @@ author:              koral <koral@mailoo.org>
 maintainer:          koral <koral@mailoo.org>
 category:            Conduit, Text, XML
 build-type:          Simple
--- extra-source-files:
 cabal-version:       >=1.10
 data-files:
   data/category.opml
@@ -26,7 +25,6 @@ source-repository head
 
 library
   exposed-modules:
-    Data.NotEmpty
     Text.OPML
     Text.OPML.Arbitrary
     Text.OPML.Stream.Parse
