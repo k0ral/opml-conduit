@@ -52,7 +52,7 @@ properties = testGroup "Properties"
 
 hlint :: TestTree
 hlint = testCase "HLint check" $ do
-  result <- HLint.hlint [ "test", "Text" ]
+  result <- HLint.hlint [ "test/", "Text/" ]
   null result @?= True
 
 
