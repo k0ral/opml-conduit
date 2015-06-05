@@ -34,6 +34,7 @@ library
       base >= 4.8 && < 5
     , case-insensitive
     , conduit
+    , conduit-parse
     , containers
     , data-default
     , exceptions
@@ -43,6 +44,7 @@ library
     , monoid-subclasses
     , mono-traversable
     , network-uri >= 2.6
+    , parsers
     , QuickCheck
     , quickcheck-instances
     , semigroups
@@ -50,7 +52,8 @@ library
     , time >= 1.5
     , timerep >= 2.0.0
     , unordered-containers
-    , xml-conduit >= 1.2.5
+    , xml-conduit >= 1.3
+    , xml-conduit-parse >= 0.2.0.0
     , xml-types
   default-language: Haskell2010
   ghc-options: -Wall -fno-warn-unused-do-bind
@@ -64,17 +67,20 @@ test-suite tests
       base >= 4.8
     , conduit
     , conduit-combinators
+    , conduit-parse
     , containers
+    , data-default
     , exceptions
     , hlint
     , lens
     , mtl
     , network-uri >= 2.6
     , opml-conduit
+    , parsers
     , resourcet
     , tasty
     , tasty-hunit
     , tasty-quickcheck
-    , xml-conduit >= 1.2.5
+    , xml-conduit-parse
   default-language:    Haskell2010
   ghc-options: -Wall

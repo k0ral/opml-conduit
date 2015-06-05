@@ -9,6 +9,9 @@ import           Control.Monad.Trans.Resource
 import           Data.Conduit
 import           Data.Conduit.Combinators     as Conduit hiding (length, map,
                                                           null)
+import           Data.Conduit.Parser
+import           Data.Conduit.Parser.XML      as XML
+import           Data.Default
 import           Data.String
 import           Data.Tree
 import           Data.Version
@@ -19,11 +22,11 @@ import qualified Language.Haskell.HLint       as HLint (hlint)
 import           Test.Tasty
 import           Test.Tasty.HUnit
 import           Test.Tasty.QuickCheck
+
 import           Text.OPML.Arbitrary          ()
 import           Text.OPML.Stream.Parse
 import           Text.OPML.Stream.Render
 import           Text.OPML.Types
-import           Text.XML.Stream.Parse        as XML
 
 
 main :: IO ()
@@ -59,7 +62,7 @@ hlint = testCase "HLint check" $ do
 categoriesCase :: TestTree
 categoriesCase = testCase "Parse categories list" $ do
   dataFile <- fromString <$> getDataFileName "data/category.opml"
-  result <- runResourceT . runConduit $ sourceFile dataFile =$= XML.parseBytes def =$= force "Invalid OPML" parseOpml
+  result <- runResourceT . runConduit $ sourceFile dataFile =$= XML.parseBytes def =$= runConduitParser parseOpml
 
   (result ^. opmlVersion_) @?= Version [2,0] []
   (result ^. head_ . opmlTitle_) @?= "Illustrating the category attribute"
@@ -71,7 +74,7 @@ categoriesCase = testCase "Parse categories list" $ do
 directoryCase :: TestTree
 directoryCase = testCase "Parse directory tree" $ do
   dataFile <- fromString <$> getDataFileName "data/directory.opml"
-  result <- runResourceT . runConduit $ sourceFile dataFile =$= XML.parseBytes def =$= force "Invalid OPML" parseOpml
+  result <- runResourceT . runConduit $ sourceFile dataFile =$= XML.parseBytes def =$= runConduitParser parseOpml
 
   (result ^. opmlVersion_) @?= Version [2,0] []
   (result ^. head_ . opmlTitle_) @?= "scriptingNewsDirectory.opml"
@@ -89,7 +92,7 @@ directoryCase = testCase "Parse directory tree" $ do
 placesCase :: TestTree
 placesCase = testCase "Parse places list" $ do
   dataFile <- fromString <$> getDataFileName "data/placesLived.opml"
-  result <- runResourceT . runConduit $ sourceFile dataFile =$= XML.parseBytes def =$= force "Invalid OPML" parseOpml
+  result <- runResourceT . runConduit $ sourceFile dataFile =$= XML.parseBytes def =$= runConduitParser parseOpml
 
   (result ^. opmlVersion_) @?= Version [2,0] []
   (result ^. head_ . opmlTitle_) @?= "placesLived.opml"
@@ -108,7 +111,7 @@ placesCase = testCase "Parse places list" $ do
 scriptCase :: TestTree
 scriptCase = testCase "Parse script" $ do
   dataFile <- fromString <$> getDataFileName "data/simpleScript.opml"
-  result <- runResourceT . runConduit $ sourceFile dataFile =$= XML.parseBytes def =$= force "Invalid OPML" parseOpml
+  result <- runResourceT . runConduit $ sourceFile dataFile =$= XML.parseBytes def =$= runConduitParser parseOpml
 
   (result ^. opmlVersion_) @?= Version [2,0] []
   (result ^. head_ . opmlTitle_) @?= "workspace.userlandsamples.doSomeUpstreaming"
@@ -126,7 +129,7 @@ scriptCase = testCase "Parse script" $ do
 statesCase :: TestTree
 statesCase = testCase "Parse states list" $ do
   dataFile <- fromString <$> getDataFileName "data/states.opml"
-  result <- runResourceT . runConduit $ sourceFile dataFile =$= XML.parseBytes def =$= force "Invalid OPML" parseOpml
+  result <- runResourceT . runConduit $ sourceFile dataFile =$= XML.parseBytes def =$= runConduitParser parseOpml
 
   (result ^. opmlVersion_) @?= Version [2,0] []
   (result ^. head_ . opmlTitle_) @?= "states.opml"
@@ -144,7 +147,7 @@ statesCase = testCase "Parse states list" $ do
 subscriptionsCase :: TestTree
 subscriptionsCase = testCase "Parse subscriptions list" $ do
   dataFile <- fromString <$> getDataFileName "data/subscriptionList.opml"
-  result <- runResourceT . runConduit $ sourceFile dataFile =$= XML.parseBytes def =$= force "Invalid OPML" parseOpml
+  result <- runResourceT . runConduit $ sourceFile dataFile =$= XML.parseBytes def =$= runConduitParser parseOpml
 
   (result ^. opmlVersion_) @?= Version [2,0] []
   (result ^. head_ . opmlTitle_) @?= "mySubscriptions.opml"
@@ -157,7 +160,7 @@ subscriptionsCase = testCase "Parse subscriptions list" $ do
   length (result ^.. outlines_ . traverse . traverse . _OpmlOutlineSubscription) @?= 13
 
 inverseHeadProperty :: TestTree
-inverseHeadProperty = testProperty "parse . render = id (on OpmlHead)" $ \opmlHead -> either (const False) (opmlHead ==) (runIdentity . runCatchT . runConduit $ renderOpmlHead opmlHead =$= force "Invalid OPML head" parseOpmlHead)
+inverseHeadProperty = testProperty "parse . render = id (on OpmlHead)" $ \opmlHead -> either (const False) (opmlHead ==) (runIdentity . runCatchT . runConduit $ renderOpmlHead opmlHead =$= runConduitParser parseOpmlHead)
 
 inverseProperty :: TestTree
-inverseProperty = testProperty "parse . render = id" $ \opml -> either (const False) (opml ==) (runIdentity . runCatchT . runConduit $ renderOpml opml =$= force "Invalid OPML" parseOpml)
+inverseProperty = testProperty "parse . render = id" $ \opml -> either (const False) (opml ==) (runIdentity . runCatchT . runConduit $ renderOpml opml =$= runConduitParser parseOpml)
