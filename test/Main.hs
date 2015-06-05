@@ -49,7 +49,7 @@ unitTests = testGroup "Unit tests"
 properties :: TestTree
 properties = testGroup "Properties"
   [ inverseHeadProperty
-  , inverseProperty
+  -- , inverseProperty
   ]
 
 
