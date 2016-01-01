@@ -1,33 +1,36 @@
 {-# LANGUAGE OverloadedLists   #-}
 {-# LANGUAGE OverloadedStrings #-}
-import           Control.Lens.Fold
-import           Control.Lens.Getter
+import           Arbitrary                    ()
+
 import           Control.Monad.Catch.Pure
 import           Control.Monad.Identity
 import           Control.Monad.Trans.Resource
 
 import           Data.Conduit
-import           Data.Conduit.Combinators     as Conduit hiding (length, map,
-                                                          null)
+import           Data.Conduit.Combinators     as Conduit (sourceFile)
 import           Data.Conduit.Parser
 import           Data.Conduit.Parser.XML      as XML
 import           Data.Default
 import           Data.String
+import           Data.Text.Encoding
 import           Data.Tree
 import           Data.Version
 
 import           Paths_opml_conduit
 
 import qualified Language.Haskell.HLint       as HLint (hlint)
+
+import           Lens.Simple
+
 import           Test.Tasty
 import           Test.Tasty.HUnit
 import           Test.Tasty.QuickCheck
 
-import           Text.OPML.Arbitrary          ()
-import           Text.OPML.Stream.Parse
-import           Text.OPML.Stream.Render
-import           Text.OPML.Types
+import           Text.OPML.Conduit.Parse
+import           Text.OPML.Conduit.Render
+import           Text.OPML.Lens
 
+import           URI.ByteString
 
 main :: IO ()
 main = defaultMain $ testGroup "Tests"
@@ -64,11 +67,11 @@ categoriesCase = testCase "Parse categories list" $ do
   dataFile <- fromString <$> getDataFileName "data/category.opml"
   result <- runResourceT . runConduit $ sourceFile dataFile =$= XML.parseBytes def =$= runConduitParser parseOpml
 
-  (result ^. opmlVersion_) @?= Version [2,0] []
-  (result ^. head_ . opmlTitle_) @?= "Illustrating the category attribute"
-  show (result ^. head_ . opmlCreated_) @?= "Just 2005-10-31 19:23:00 UTC"
-  length (result ^.. outlines_ . traverse . traverse . _OpmlOutlineGeneric) @?= 1
-  map (map length .levels) (result ^. outlines_) @?= [[1]]
+  (result ^. opmlVersionL) @?= Version [2,0] []
+  (result ^. opmlHeadL . opmlTitleL) @?= "Illustrating the category attribute"
+  show (result ^. opmlHeadL . opmlCreatedL) @?= "Just 2005-10-31 19:23:00 UTC"
+  length (result ^.. opmlOutlinesL . traverse . traverse . _OpmlOutlineGeneric) @?= 1
+  map (map length .levels) (result ^. opmlOutlinesL) @?= [[1]]
 
 
 directoryCase :: TestTree
@@ -76,17 +79,20 @@ directoryCase = testCase "Parse directory tree" $ do
   dataFile <- fromString <$> getDataFileName "data/directory.opml"
   result <- runResourceT . runConduit $ sourceFile dataFile =$= XML.parseBytes def =$= runConduitParser parseOpml
 
-  (result ^. opmlVersion_) @?= Version [2,0] []
-  (result ^. head_ . opmlTitle_) @?= "scriptingNewsDirectory.opml"
-  show (result ^. head_ . opmlCreated_) @?= "Just 2005-10-13 15:34:07 UTC"
-  show (result ^. head_ . modified_) @?= "Just 2005-10-25 21:33:57 UTC"
-  (result ^. head_ . ownerName_) @?= "Dave Winer"
-  (result ^. head_ . ownerEmail_) @?= "dwiner@yahoo.com"
-  (result ^. head_ . expansionState_) @?= []
-  (result ^. head_ . vertScrollState_) @?= Just 1
-  (result ^. head_ . window_) @?= [(Top',105), (Left',466), (Bottom',386), (Right',964)]
-  length (result ^.. outlines_ . traverse . traverse . _OpmlOutlineLink) @?= 8
-  map (map length .levels) (result ^. outlines_) @?= [[1], [1], [1], [1], [1], [1], [1], [1]]
+  (result ^. opmlVersionL) @?= Version [2,0] []
+  (result ^. opmlHeadL . opmlTitleL) @?= "scriptingNewsDirectory.opml"
+  show (result ^. opmlHeadL . opmlCreatedL) @?= "Just 2005-10-13 15:34:07 UTC"
+  show (result ^. opmlHeadL . modifiedL) @?= "Just 2005-10-25 21:33:57 UTC"
+  (result ^. opmlHeadL . ownerNameL) @?= "Dave Winer"
+  (result ^. opmlHeadL . ownerEmailL) @?= "dwiner@yahoo.com"
+  (result ^.. opmlHeadL . expansionStateL) @?= []
+  (result ^. opmlHeadL . vertScrollStateL) @?= Just 1
+  (result ^. opmlHeadL . windowBottomL) @?= Just 386
+  (result ^. opmlHeadL . windowLeftL) @?= Just 466
+  (result ^. opmlHeadL . windowRightL) @?= Just 964
+  (result ^. opmlHeadL . windowTopL) @?= Just 105
+  length (result ^.. opmlOutlinesL . traverse . traverse . _OpmlOutlineLink) @?= 8
+  map (map length .levels) (result ^. opmlOutlinesL) @?= [[1], [1], [1], [1], [1], [1], [1], [1]]
 
 
 placesCase :: TestTree
@@ -94,18 +100,21 @@ placesCase = testCase "Parse places list" $ do
   dataFile <- fromString <$> getDataFileName "data/placesLived.opml"
   result <- runResourceT . runConduit $ sourceFile dataFile =$= XML.parseBytes def =$= runConduitParser parseOpml
 
-  (result ^. opmlVersion_) @?= Version [2,0] []
-  (result ^. head_ . opmlTitle_) @?= "placesLived.opml"
-  show (result ^. head_ . opmlCreated_) @?= "Just 2006-02-27 12:09:48 UTC"
-  show (result ^. head_ . modified_) @?= "Just 2006-02-27 12:11:44 UTC"
-  (result ^. head_ . ownerName_) @?= "Dave Winer"
-  show (result ^. head_ . ownerId_) @?= "Just http://www.opml.org/profiles/sendMail?usernum=1"
-  (result ^. head_ . expansionState_) @?= [1,2,5,10,13,15]
-  (result ^. head_ . vertScrollState_) @?= Just 1
-  (result ^. head_ . window_) @?= [(Top',242), (Left',329), (Bottom',665), (Right',547)]
-  length (result ^.. outlines_ . traverse . traverse . _OpmlOutlineGeneric) @?= 18
-  length (result ^.. outlines_ . traverse . traverse . _OpmlOutlineLink) @?= 1
-  map (map length .levels) (result ^. outlines_) @?= [[1,6,12]]
+  (result ^. opmlVersionL) @?= Version [2,0] []
+  (result ^. opmlHeadL . opmlTitleL) @?= "placesLived.opml"
+  show (result ^. opmlHeadL . opmlCreatedL) @?= "Just 2006-02-27 12:09:48 UTC"
+  show (result ^. opmlHeadL . modifiedL) @?= "Just 2006-02-27 12:11:44 UTC"
+  (result ^. opmlHeadL . ownerNameL) @?= "Dave Winer"
+  fmap (decodeUtf8 . serializeURI') (result ^. opmlHeadL . ownerIdL) @?= Just "http://www.opml.org/profiles/sendMail?usernum=1"
+  (result ^.. opmlHeadL . expansionStateL) @?= [1,2,5,10,13,15]
+  (result ^. opmlHeadL . vertScrollStateL) @?= Just 1
+  (result ^. opmlHeadL . windowBottomL) @?= Just 665
+  (result ^. opmlHeadL . windowLeftL) @?= Just 329
+  (result ^. opmlHeadL . windowRightL) @?= Just 547
+  (result ^. opmlHeadL . windowTopL) @?= Just 242
+  length (result ^.. opmlOutlinesL . traverse . traverse . _OpmlOutlineGeneric) @?= 18
+  length (result ^.. opmlOutlinesL . traverse . traverse . _OpmlOutlineLink) @?= 1
+  map (map length .levels) (result ^. opmlOutlinesL) @?= [[1,6,12]]
 
 
 scriptCase :: TestTree
@@ -113,17 +122,20 @@ scriptCase = testCase "Parse script" $ do
   dataFile <- fromString <$> getDataFileName "data/simpleScript.opml"
   result <- runResourceT . runConduit $ sourceFile dataFile =$= XML.parseBytes def =$= runConduitParser parseOpml
 
-  (result ^. opmlVersion_) @?= Version [2,0] []
-  (result ^. head_ . opmlTitle_) @?= "workspace.userlandsamples.doSomeUpstreaming"
-  show (result ^. head_ . opmlCreated_) @?= "Just 2002-02-11 22:48:02 UTC"
-  show (result ^. head_ . modified_) @?= "Just 2005-10-30 03:30:17 UTC"
-  (result ^. head_ . ownerName_) @?= "Dave Winer"
-  (result ^. head_ . ownerEmail_) @?= "dwiner@yahoo.com"
-  (result ^. head_ . expansionState_) @?= [1, 2, 4]
-  (result ^. head_ . vertScrollState_) @?= Just 1
-  (result ^. head_ . window_) @?= [(Top', 74), (Left', 41), (Bottom', 314), (Right', 475)]
-  length (result ^.. outlines_ . traverse . traverse . _OpmlOutlineGeneric) @?= 11
-  map (map length .levels) (result ^. outlines_) @?= [[1,2,2], [1,2], [1], [1,1]]
+  (result ^. opmlVersionL) @?= Version [2,0] []
+  (result ^. opmlHeadL . opmlTitleL) @?= "workspace.userlandsamples.doSomeUpstreaming"
+  show (result ^. opmlHeadL . opmlCreatedL) @?= "Just 2002-02-11 22:48:02 UTC"
+  show (result ^. opmlHeadL . modifiedL) @?= "Just 2005-10-30 03:30:17 UTC"
+  (result ^. opmlHeadL . ownerNameL) @?= "Dave Winer"
+  (result ^. opmlHeadL . ownerEmailL) @?= "dwiner@yahoo.com"
+  (result ^.. opmlHeadL . expansionStateL) @?= [1, 2, 4]
+  (result ^. opmlHeadL . vertScrollStateL) @?= Just 1
+  (result ^. opmlHeadL . windowBottomL) @?= Just 314
+  (result ^. opmlHeadL . windowLeftL) @?= Just 41
+  (result ^. opmlHeadL . windowRightL) @?= Just 475
+  (result ^. opmlHeadL . windowTopL) @?= Just 74
+  length (result ^.. opmlOutlinesL . traverse . traverse . _OpmlOutlineGeneric) @?= 11
+  map (map length .levels) (result ^. opmlOutlinesL) @?= [[1,2,2], [1,2], [1], [1,1]]
 
 
 statesCase :: TestTree
@@ -131,17 +143,20 @@ statesCase = testCase "Parse states list" $ do
   dataFile <- fromString <$> getDataFileName "data/states.opml"
   result <- runResourceT . runConduit $ sourceFile dataFile =$= XML.parseBytes def =$= runConduitParser parseOpml
 
-  (result ^. opmlVersion_) @?= Version [2,0] []
-  (result ^. head_ . opmlTitle_) @?= "states.opml"
-  show (result ^. head_ . opmlCreated_) @?= "Just 2005-03-15 16:35:45 UTC"
-  show (result ^. head_ . modified_) @?= "Just 2005-07-14 23:41:05 UTC"
-  (result ^. head_ . ownerName_) @?= "Dave Winer"
-  (result ^. head_ . ownerEmail_) @?= "dave@scripting.com"
-  (result ^. head_ . expansionState_) @?= [1, 6, 13, 16, 18, 20]
-  (result ^. head_ . vertScrollState_) @?= Just 1
-  (result ^. head_ . window_) @?= [(Top', 106), (Left', 106), (Bottom', 558), (Right', 479)]
-  length (result ^.. outlines_ . traverse . traverse . _OpmlOutlineGeneric) @?= 63
-  map (map length .levels) (result ^. outlines_) @?= [[1, 8, 50, 4]]
+  (result ^. opmlVersionL) @?= Version [2,0] []
+  (result ^. opmlHeadL . opmlTitleL) @?= "states.opml"
+  show (result ^. opmlHeadL . opmlCreatedL) @?= "Just 2005-03-15 16:35:45 UTC"
+  show (result ^. opmlHeadL . modifiedL) @?= "Just 2005-07-14 23:41:05 UTC"
+  (result ^. opmlHeadL . ownerNameL) @?= "Dave Winer"
+  (result ^. opmlHeadL . ownerEmailL) @?= "dave@scripting.com"
+  (result ^.. opmlHeadL . expansionStateL) @?= [1, 6, 13, 16, 18, 20]
+  (result ^. opmlHeadL . vertScrollStateL) @?= Just 1
+  (result ^. opmlHeadL . windowBottomL) @?= Just 558
+  (result ^. opmlHeadL . windowLeftL) @?= Just 106
+  (result ^. opmlHeadL . windowRightL) @?= Just 479
+  (result ^. opmlHeadL . windowTopL) @?= Just 106
+  length (result ^.. opmlOutlinesL . traverse . traverse . _OpmlOutlineGeneric) @?= 63
+  map (map length .levels) (result ^. opmlOutlinesL) @?= [[1, 8, 50, 4]]
 
 
 subscriptionsCase :: TestTree
@@ -149,18 +164,21 @@ subscriptionsCase = testCase "Parse subscriptions list" $ do
   dataFile <- fromString <$> getDataFileName "data/subscriptionList.opml"
   result <- runResourceT . runConduit $ sourceFile dataFile =$= XML.parseBytes def =$= runConduitParser parseOpml
 
-  (result ^. opmlVersion_) @?= Version [2,0] []
-  (result ^. head_ . opmlTitle_) @?= "mySubscriptions.opml"
-  show (result ^. head_ . opmlCreated_) @?= "Just 2005-06-18 12:11:52 UTC"
-  show (result ^. head_ . modified_) @?= "Just 2005-08-02 21:42:48 UTC"
-  (result ^. head_ . ownerName_) @?= "Dave Winer"
-  (result ^. head_ . ownerEmail_) @?= "dave@scripting.com"
-  (result ^. head_ . vertScrollState_) @?= Just 1
-  (result ^. head_ . window_) @?= [(Top', 61), (Left', 304), (Bottom', 562), (Right',842)]
-  length (result ^.. outlines_ . traverse . traverse . _OpmlOutlineSubscription) @?= 13
+  (result ^. opmlVersionL) @?= Version [2,0] []
+  (result ^. opmlHeadL . opmlTitleL) @?= "mySubscriptions.opml"
+  show (result ^. opmlHeadL . opmlCreatedL) @?= "Just 2005-06-18 12:11:52 UTC"
+  show (result ^. opmlHeadL . modifiedL) @?= "Just 2005-08-02 21:42:48 UTC"
+  (result ^. opmlHeadL . ownerNameL) @?= "Dave Winer"
+  (result ^. opmlHeadL . ownerEmailL) @?= "dave@scripting.com"
+  (result ^. opmlHeadL . vertScrollStateL) @?= Just 1
+  (result ^. opmlHeadL . windowBottomL) @?= Just 562
+  (result ^. opmlHeadL . windowLeftL) @?= Just 304
+  (result ^. opmlHeadL . windowRightL) @?= Just 842
+  (result ^. opmlHeadL . windowTopL) @?= Just 61
+  length (result ^.. opmlOutlinesL . traverse . traverse . _OpmlOutlineSubscription) @?= 13
 
 inverseHeadProperty :: TestTree
 inverseHeadProperty = testProperty "parse . render = id (on OpmlHead)" $ \opmlHead -> either (const False) (opmlHead ==) (runIdentity . runCatchT . runConduit $ renderOpmlHead opmlHead =$= runConduitParser parseOpmlHead)
 
-inverseProperty :: TestTree
-inverseProperty = testProperty "parse . render = id" $ \opml -> either (const False) (opml ==) (runIdentity . runCatchT . runConduit $ renderOpml opml =$= runConduitParser parseOpml)
+-- inverseProperty :: TestTree
+-- inverseProperty = testProperty "parse . render = id" $ \opml -> either (const False) (opml ==) (runIdentity . runCatchT . runConduit $ renderOpml opml =$= runConduitParser parseOpml)

@@ -1,36 +1,39 @@
+{-# OPTIONS_GHC -fno-warn-missing-signatures #-}
 {-# LANGUAGE OverloadedLists    #-}
 {-# LANGUAGE OverloadedStrings  #-}
 {-# LANGUAGE StandaloneDeriving #-}
+{-# LANGUAGE TemplateHaskell    #-}
 {-# LANGUAGE TupleSections      #-}
 {-# LANGUAGE TypeFamilies       #-}
 -- | Streaming parser for the OPML 2.0 standard.
 --
 -- The parser tries to be as lenient as possible. All functions may throw an 'OpmlException'.
-module Text.OPML.Stream.Parse
+module Text.OPML.Conduit.Parse
   ( -- * Parsers
     parseOpml
   , parseOpmlHead
   , parseOpmlOutline
+    -- * Exceptions
+  , OpmlException(..)
   ) where
 
 -- {{{ Imports
 import           Control.Applicative
-import           Control.Lens.At
-import           Control.Lens.Setter
+import           Control.Foldl                as Fold
 import           Control.Monad
 import           Control.Monad.Catch
 
 import           Data.CaseInsensitive         hiding (map)
 import           Data.Conduit.Parser
 import           Data.Conduit.Parser.XML
-import           Data.Default
-import           Data.List.NonEmpty           hiding (filter, map)
+import           Data.List.NonEmpty           (NonEmpty, nonEmpty)
 import           Data.Maybe
 import           Data.Monoid
 import           Data.Monoid.Textual          hiding (map)
 import           Data.MonoTraversable
-import           Data.NonNull
+import           Data.NonNull                 (NonNull, fromNullable)
 import           Data.Text                    (Text, strip, unpack)
+import           Data.Text.Encoding
 import           Data.Time.Clock
 import           Data.Time.LocalTime
 import           Data.Time.RFC822
@@ -38,34 +41,39 @@ import           Data.Tree
 import           Data.Version
 import           Data.XML.Types
 
-import           Network.URI                  (URI, parseURI)
+import           Lens.Simple
 
 import           Numeric
+
+import           Prelude                      hiding (last)
 
 import           Text.OPML.Types
 import           Text.Parser.Combinators
 import           Text.ParserCombinators.ReadP (readP_to_S)
+
+import           URI.ByteString
 -- }}}
 
 data OpmlException = MissingText
                    | InvalidBool Text
                    | InvalidDecimal Text
                    | InvalidTime Text
-                   | InvalidURI Text
+                   | InvalidURI URIParseError
                    | InvalidVersion Text
 
 deriving instance Eq OpmlException
-instance Show OpmlException where
-  show MissingText = "An outline is missing the 'text' attribute."
-  show (InvalidBool t) = "Invalid boolean: " ++ unpack t
-  show (InvalidDecimal t) = "Invalid decimal: " ++ unpack t
-  show (InvalidURI t) = "Invalid URI: " ++ unpack t
-  show (InvalidTime t) = "Invalid time: " ++ unpack t
-  show (InvalidVersion t) = "Invalid version: " ++ unpack t
-instance Exception OpmlException
+deriving instance Show OpmlException
+
+instance Exception OpmlException where
+  displayException MissingText = "An outline is missing the 'text' attribute."
+  displayException (InvalidBool t) = "Invalid boolean: " ++ unpack t
+  displayException (InvalidDecimal t) = "Invalid decimal: " ++ unpack t
+  displayException (InvalidURI e) = "Invalid URI: " ++ show e
+  displayException (InvalidTime t) = "Invalid time: " ++ unpack t
+  displayException (InvalidVersion t) = "Invalid version: " ++ unpack t
 
 asURI :: (MonadThrow m) => Text -> m URI
-asURI t = maybe (throwM $ InvalidURI t) return . parseURI $ unpack t
+asURI t = either (throwM . InvalidURI) return . parseURI laxURIParserOptions $ encodeUtf8 t
 
 asVersion :: (MonadThrow m) => Text -> m Version
 asVersion v = case filter (onull . snd) . readP_to_S parseVersion $ unpack v of
@@ -97,48 +105,42 @@ asNonNull = maybe (throwM MissingText) return . fromNullable
 asCategories :: Text -> [NonEmpty (NonNull Text)]
 asCategories = mapMaybe (nonEmpty . mapMaybe fromNullable . split (== '/')) . split (== ',')
 
+dateTag :: (MonadCatch m) => Name -> ConduitParser Event m UTCTime
+dateTag name = tagName name ignoreAttrs $ \_ -> content asTime
 
-dateCreated, dateModified :: MonadCatch m => ConduitParser Event m UTCTime
-dateCreated = tagName "dateCreated" ignoreAttrs $ \_ -> content asTime
-dateModified = tagName "dateModified" ignoreAttrs $ \_ -> content asTime
+uriTag :: (MonadCatch m) => Name -> ConduitParser Event m URI
+uriTag name = tagName name ignoreAttrs $ \_ -> content asURI
 
-docs, ownerId :: MonadCatch m => ConduitParser Event m URI
-docs = tagName "docs" ignoreAttrs $ \_ -> content asURI
-ownerId = tagName "ownerId" ignoreAttrs $ \_ -> content asURI
+expansionStateTag :: (MonadCatch m, Integral a) => ConduitParser Event m [a]
+expansionStateTag = tagName "expansionState" ignoreAttrs $ \_ -> content asExpansionState
 
-expansionState :: (MonadCatch m, Integral a) => ConduitParser Event m [a]
-expansionState = tagName "expansionState" ignoreAttrs $ \_ -> content asExpansionState
+textTag :: (MonadCatch m) => Name -> ConduitParser Event m Text
+textTag name = tagName name ignoreAttrs $ const textContent
 
-ownerEmail, ownerName, opmlTitle :: MonadCatch m => ConduitParser Event m Text
-ownerEmail = tagName "ownerEmail" ignoreAttrs $ const textContent
-ownerName = tagName "ownerName" ignoreAttrs $ const textContent
-opmlTitle = tagName "title" ignoreAttrs $ const textContent
+decimalTag :: (Integral a, MonadCatch m) => Name -> ConduitParser Event m a
+decimalTag name = tagName name ignoreAttrs $ const $ content asDecimal
 
-vertScrollState, windowBottom, windowLeft, windowRight, windowTop :: (MonadCatch m, Integral a) => ConduitParser Event m a
-vertScrollState = tagName "vertScrollState" ignoreAttrs $ \_ -> content asDecimal
-windowBottom = tagName "windowBottom" ignoreAttrs $ \_ -> content asDecimal
-windowLeft = tagName "windowLeft" ignoreAttrs $ \_ -> content asDecimal
-windowRight = tagName "windowRight" ignoreAttrs $ \_ -> content asDecimal
-windowTop = tagName "windowTop" ignoreAttrs $ \_ -> content asDecimal
+unknownTag :: (MonadCatch m) => ConduitParser Event m ()
+unknownTag = tagPredicate (const True) ignoreAttrs $ \_ -> return ()
 
 
-opmlHeadBuilders :: MonadCatch m => [ConduitParser Event m (Endo OpmlHead)]
-opmlHeadBuilders = [ liftM (Endo . set opmlCreated_ . Just) dateCreated
-                   , liftM (Endo . set modified_ . Just) dateModified
-                   , liftM (Endo . set docs_ . Just) docs
-                   , liftM (Endo . set expansionState_) expansionState
-                   , liftM (Endo . set ownerEmail_) ownerEmail
-                   , liftM (Endo . set ownerId_ . Just) ownerId
-                   , liftM (Endo . set ownerName_) ownerName
-                   , liftM (Endo . set opmlTitle_) opmlTitle
-                   , liftM (Endo . set vertScrollState_ . Just) vertScrollState
-                   , liftM (Endo . set (window_.at Bottom') . Just) windowBottom
-                   , liftM (Endo . set (window_.at Left') . Just) windowLeft
-                   , liftM (Endo . set (window_.at Right') . Just) windowRight
-                   , liftM (Endo . set (window_.at Top') . Just) windowTop
-                   , unknown >> return mempty
-                   ]
-  where unknown = tagPredicate (const True) ignoreAttrs $ \_ -> return ()
+data HeadPiece = HeadCreated UTCTime
+               | HeadModified UTCTime
+               | HeadDocs URI
+               | HeadExpansionState [Int]
+               | HeadOwnerEmail Text
+               | HeadOwnerId URI
+               | HeadOwnerName Text
+               | HeadTitle Text
+               | HeadVertScrollState Int
+               | HeadWindowBottom Int
+               | HeadWindowLeft Int
+               | HeadWindowRight Int
+               | HeadWindowTop Int
+               | HeadUnknown
+
+makeTraversals ''HeadPiece
+
 
 -- | Parse the @\<head\>@ section.
 -- This function is more lenient than what the standard demands on the following points:
@@ -147,8 +149,37 @@ opmlHeadBuilders = [ liftM (Endo . set opmlCreated_ . Just) dateCreated
 -- - each unknown sub-element is ignored.
 parseOpmlHead :: (MonadCatch m) => ConduitParser Event m OpmlHead
 parseOpmlHead = named "OPML <head> section" $ tagName "head" ignoreAttrs $ \_ -> do
-  builders <- many $ choice opmlHeadBuilders
-  return $ (appEndo $ mconcat builders) def
+  p <- many $ choice piece
+  return $ flip fold p $ OpmlHead
+    <$> handles _HeadTitle (lastDef mempty)
+    <*> handles _HeadCreated last
+    <*> handles _HeadModified last
+    <*> handles _HeadOwnerName (lastDef mempty)
+    <*> handles _HeadOwnerEmail (lastDef mempty)
+    <*> handles _HeadOwnerId last
+    <*> handles _HeadDocs last
+    <*> handles _HeadExpansionState Fold.mconcat
+    <*> handles _HeadVertScrollState last
+    <*> handles _HeadWindowBottom last
+    <*> handles _HeadWindowLeft last
+    <*> handles _HeadWindowRight last
+    <*> handles _HeadWindowTop last
+  where piece = [ HeadCreated <$> dateTag "dateCreated"
+                , HeadModified <$> dateTag "dateModified"
+                , HeadDocs <$> uriTag "docs"
+                , HeadExpansionState <$> expansionStateTag
+                , HeadOwnerEmail <$> textTag "ownerEmail"
+                , HeadOwnerId <$> uriTag "ownerId"
+                , HeadOwnerName <$> textTag "ownerName"
+                , HeadTitle <$> textTag "title"
+                , HeadVertScrollState <$> decimalTag "vertScrollState"
+                , HeadWindowBottom <$> decimalTag "windowBottom"
+                , HeadWindowLeft <$> decimalTag "windowLeft"
+                , HeadWindowRight <$> decimalTag "windowRight"
+                , HeadWindowTop <$> decimalTag "windowTop"
+                , HeadUnknown <$ unknownTag
+                ]
+
 
 -- | Parse an @\<outline\>@ section.
 -- The value of type attributes are not case-sensitive, that is @type=\"LINK\"@ has the same meaning as @type="link"@.
@@ -177,8 +208,8 @@ parseOpmlOutline = tagName "outline" attributes handler <?> "OPML <outline> sect
   handler (_, b, _, Just l) = Node <$> (OpmlOutlineLink <$> baseHandler b <*> asURI l) <*> pure []
   handler (otype, b, _, _) = Node <$> (OpmlOutlineGeneric <$> baseHandler b <*> pure (fromMaybe mempty otype))
                                   <*> many parseOpmlOutline
-  baseHandler (text, comment, breakpoint, created, category) = return $ OutlineBase text comment breakpoint created (fromMaybe mempty category)
-  subscriptionHandler (uri, html, description, language, title, version) = OutlineSubscription uri html (fromMaybe mempty description) (fromMaybe mempty language) (fromMaybe mempty title) (fromMaybe mempty version)
+  baseHandler (txt, comment, breakpoint, created, category) = return $ OutlineBase txt comment breakpoint created (fromMaybe mempty category)
+  subscriptionHandler (uri, html, desc, lang, title, version) = OutlineSubscription uri html (fromMaybe mempty desc) (fromMaybe mempty lang) (fromMaybe mempty title) (fromMaybe mempty version)
 
 -- | Parse the top-level @\<opml\>@ element.
 parseOpml :: (MonadCatch m) => ConduitParser Event m Opml

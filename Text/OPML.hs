@@ -1,10 +1,7 @@
--- | This module re-exports commonly used modules:
---
--- - 'Text.OPML.Stream.Parse'
--- - 'Text.OPML.Stream.Render'
--- - 'Text.OPML.Types'
+-- | This module re-exports all the package modules.
 module Text.OPML (module X) where
 
-import           Text.OPML.Stream.Parse  as X
-import           Text.OPML.Stream.Render as X
-import           Text.OPML.Types         as X
+import           Text.OPML.Conduit.Parse  as X
+import           Text.OPML.Conduit.Render as X
+import           Text.OPML.Lens           as X
+import           Text.OPML.Types          as X
