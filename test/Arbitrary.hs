@@ -90,8 +90,8 @@ genTime = do
 
 -- | Generates 'OutlineBase''s categories.
 -- This generator makes sure that the result has no @,@ nor @/@ characters, since those are used as separators.
-instance Arbitrary [NonEmpty (NonNull Text)] where
-  arbitrary = listOf genCategoryPath
+instance Arbitrary (NonEmpty (NonNull Text)) where
+  arbitrary = genCategoryPath
     where genCategory = genNonNull `suchThat` (isNothing . find (\c -> c == ',' || c == '/') . toNullable)
           genCategoryPath = (:|) <$> genCategory <*> listOf genCategory
   -- shrink = genericShrink
