@@ -57,7 +57,7 @@ formatBool :: Bool -> Text
 formatBool = toLower . tshow
 
 formatURI :: URI -> Text
-formatURI = decodeUtf8 . serializeURI'
+formatURI = decodeUtf8 . serializeURIRef'
 
 -- | Render the @\<head\>@ section.
 renderOpmlHead :: (Monad m) => OpmlHead -> Source m Event

@@ -1,6 +1,7 @@
 {-# LANGUAGE DeriveGeneric      #-}
 {-# LANGUAGE FlexibleContexts   #-}
 {-# LANGUAGE FlexibleInstances  #-}
+{-# LANGUAGE GADTs              #-}
 {-# LANGUAGE OverloadedStrings  #-}
 {-# LANGUAGE StandaloneDeriving #-}
 -- | External 'Arbitrary' instances used by OPML types.
@@ -41,7 +42,7 @@ instance Arbitrary Version where
 -- | Reasonable enough 'URI' generator.
 instance Arbitrary URI where
   arbitrary = URI <$> arbitrary <*> arbitrary <*> genPath <*> arbitrary <*> (Just <$> genFragment)
-  shrink = genericShrink
+  shrink (URI a b c d e) = URI <$> shrink a <*> shrink b <*> shrink c <*> shrink d <*> shrink e
 
 -- | Reasonable enough 'Authority' generator.
 instance Arbitrary Authority where

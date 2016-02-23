@@ -105,7 +105,7 @@ placesCase = testCase "Parse places list" $ do
   show (result ^. opmlHeadL . opmlCreatedL) @?= "Just 2006-02-27 12:09:48 UTC"
   show (result ^. opmlHeadL . modifiedL) @?= "Just 2006-02-27 12:11:44 UTC"
   (result ^. opmlHeadL . ownerNameL) @?= "Dave Winer"
-  fmap (decodeUtf8 . serializeURI') (result ^. opmlHeadL . ownerIdL) @?= Just "http://www.opml.org/profiles/sendMail?usernum=1"
+  fmap (decodeUtf8 . serializeURIRef') (result ^. opmlHeadL . ownerIdL) @?= Just "http://www.opml.org/profiles/sendMail?usernum=1"
   (result ^.. opmlHeadL . expansionStateL) @?= [1,2,5,10,13,15]
   (result ^. opmlHeadL . vertScrollStateL) @?= Just 1
   (result ^. opmlHeadL . windowBottomL) @?= Just 665
