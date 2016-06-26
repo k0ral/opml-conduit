@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP                #-}
 {-# LANGUAGE DeriveGeneric      #-}
 {-# LANGUAGE FlexibleContexts   #-}
 {-# LANGUAGE FlexibleInstances  #-}
@@ -32,7 +33,10 @@ import           Text.OPML.Types
 import           URI.ByteString
 -- }}}
 
+#if MIN_VERSION_base(4,9,0)
+#else
 deriving instance Generic Version
+#endif
 
 -- | OPML version may only be @1.0@, @1.1@ or @2.0@
 instance Arbitrary Version where
