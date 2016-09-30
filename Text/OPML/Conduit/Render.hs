@@ -17,6 +17,7 @@ import           Data.Conduit
 import           Data.List.NonEmpty     hiding (filter, map)
 import           Data.Monoid
 import           Data.NonNull
+import           Data.String
 import           Data.Text              (Text, intercalate, pack, toLower)
 import           Data.Text.Encoding
 import           Data.Time.Clock
@@ -28,7 +29,8 @@ import           Data.XML.Types
 
 import           Lens.Simple
 
-import           Prelude                hiding (foldr, lookup)
+import           Prelude                hiding (foldr, lookup, show)
+import qualified Prelude                (show)
 
 import           Text.OPML.Lens
 import           Text.OPML.Types
@@ -37,8 +39,8 @@ import           Text.XML.Stream.Render
 import           URI.ByteString
 -- }}}
 
-tshow :: (Show a) => a -> Text
-tshow = pack . show
+show :: (Show a, IsString t) => a -> t
+show = fromString . Prelude.show
 
 empty :: (Eq s, Monoid s) => s -> Bool
 empty t = t == mempty
@@ -54,7 +56,7 @@ formatCategories :: [NonEmpty (NonNull Text)] -> Maybe Text
 formatCategories = toMaybe . intercalate "," . map (intercalate "/" . toList . fmap toNullable)
 
 formatBool :: Bool -> Text
-formatBool = toLower . tshow
+formatBool = toLower . show
 
 formatURI :: URI -> Text
 formatURI = decodeUtf8 . serializeURIRef'
@@ -65,16 +67,16 @@ renderOpmlHead input = tag "head" mempty $ do
   forM_ (input^.opmlCreatedL)       $ tag "dateCreated" mempty . content . formatTime
   forM_ (input^.modifiedL)          $ tag "dateModified" mempty . content . formatTime
   forM_ (input^.docsL)              $ tag "docs" mempty . content . formatURI
-  unless (null es)                  $ tag "expansionState" mempty . content . intercalate "," $ tshow <$> es
+  unless (null es)                  $ tag "expansionState" mempty . content . intercalate "," $ show <$> es
   unless (empty email)              $ tag "ownerEmail" mempty $ content email
   forM_ (input^.ownerIdL)           $ tag "ownerId" mempty . content . formatURI
   unless (empty name)               $ tag "ownerName" mempty $ content name
   unless (empty title)              $ tag "title" mempty $ content title
-  forM_ (input^.vertScrollStateL)   $ tag "vertScrollState" mempty . content . tshow
-  forM_ (input^.windowBottomL)      $ tag "windowBottom" mempty . content . tshow
-  forM_ (input^.windowLeftL)        $ tag "windowLeft" mempty . content . tshow
-  forM_ (input^.windowRightL)       $ tag "windowRight" mempty . content . tshow
-  forM_ (input^.windowTopL)         $ tag "windowTop" mempty . content . tshow
+  forM_ (input^.vertScrollStateL)   $ tag "vertScrollState" mempty . content . show
+  forM_ (input^.windowBottomL)      $ tag "windowBottom" mempty . content . show
+  forM_ (input^.windowLeftL)        $ tag "windowLeft" mempty . content . show
+  forM_ (input^.windowRightL)       $ tag "windowRight" mempty . content . show
+  forM_ (input^.windowTopL)         $ tag "windowTop" mempty . content . show
   where es = input ^.. expansionStateL
         email = input ^. ownerEmailL
         name = input ^. ownerNameL

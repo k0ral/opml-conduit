@@ -1,6 +1,7 @@
 {-# OPTIONS_GHC -fno-warn-missing-signatures #-}
 {-# LANGUAGE OverloadedLists    #-}
 {-# LANGUAGE OverloadedStrings  #-}
+{-# LANGUAGE RankNTypes         #-}
 {-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE TemplateHaskell    #-}
 {-# LANGUAGE TupleSections      #-}
@@ -18,14 +19,14 @@ module Text.OPML.Conduit.Parse
   ) where
 
 -- {{{ Imports
-import           Control.Applicative
-import           Control.Foldl                as Fold
+import           Conduit                      hiding (throwM)
+
+import           Control.Applicative          hiding(many)
+import           Control.Exception.Safe       as Exception
 import           Control.Monad
-import           Control.Monad.Catch
+import           Control.Monad.Fix
 
 import           Data.CaseInsensitive         hiding (map)
-import           Data.Conduit.Parser
-import           Data.Conduit.Parser.XML
 import           Data.List.NonEmpty           (NonEmpty, nonEmpty)
 import           Data.Maybe
 import           Data.Monoid
@@ -48,8 +49,8 @@ import           Numeric
 import           Prelude                      hiding (last)
 
 import           Text.OPML.Types
-import           Text.Parser.Combinators
 import           Text.ParserCombinators.ReadP (readP_to_S)
+import           Text.XML.Stream.Parse
 
 import           URI.ByteString
 -- }}}
@@ -78,7 +79,7 @@ asURI t = either (throwM . InvalidURI) return . parseURI laxURIParserOptions $ e
 asVersion :: (MonadThrow m) => Text -> m Version
 asVersion v = case filter (onull . snd) . readP_to_S parseVersion $ unpack v of
   [(a, "")] -> return a
-  _ -> throwM $ InvalidVersion v
+  _         -> throwM $ InvalidVersion v
 
 asDecimal :: (MonadThrow m, Integral a) => Text -> m a
 asDecimal t = case filter (onull . snd) . readSigned readDec $ unpack t of
@@ -105,23 +106,28 @@ asNonNull = maybe (throwM MissingText) return . fromNullable
 asCategories :: Text -> [NonEmpty (NonNull Text)]
 asCategories = mapMaybe (nonEmpty . mapMaybe fromNullable . split (== '/')) . split (== ',')
 
-dateTag :: (MonadCatch m) => Name -> ConduitParser Event m UTCTime
-dateTag name = tagName name ignoreAttrs $ \_ -> content asTime
+dateTag :: (MonadThrow m) => Name -> ConduitM Event o m (Maybe UTCTime)
+dateTag name = tagIgnoreAttrs name $ content >>= asTime
 
-uriTag :: (MonadCatch m) => Name -> ConduitParser Event m URI
-uriTag name = tagName name ignoreAttrs $ \_ -> content asURI
+uriTag :: (MonadThrow m) => Name -> ConduitM Event o m (Maybe URI)
+uriTag name = tagIgnoreAttrs name $ content >>= asURI
 
-expansionStateTag :: (MonadCatch m, Integral a) => ConduitParser Event m [a]
-expansionStateTag = tagName "expansionState" ignoreAttrs $ \_ -> content asExpansionState
+expansionStateTag :: (MonadThrow m, Integral a) => ConduitM Event o m (Maybe [a])
+expansionStateTag = tagIgnoreAttrs "expansionState" $ content >>= asExpansionState
 
-textTag :: (MonadCatch m) => Name -> ConduitParser Event m Text
-textTag name = tagName name ignoreAttrs $ const textContent
+textTag :: (MonadThrow m) => Name -> ConduitM Event o m (Maybe Text)
+textTag name = tagIgnoreAttrs name content
 
-decimalTag :: (Integral a, MonadCatch m) => Name -> ConduitParser Event m a
-decimalTag name = tagName name ignoreAttrs $ const $ content asDecimal
+decimalTag :: (Integral a, MonadThrow m) => Name -> ConduitM Event o m (Maybe a)
+decimalTag name = tagIgnoreAttrs name $ content >>= asDecimal
 
-unknownTag :: (MonadCatch m) => ConduitParser Event m ()
-unknownTag = tagPredicate (const True) ignoreAttrs $ \_ -> return ()
+projectC :: Monad m => Fold a a' b b' -> Conduit a m b
+projectC prism = fix $ \recurse -> do
+  item <- await
+  case (item, item ^? (_Just . prism)) of
+    (_, Just a) -> yield a >> recurse
+    (Just _, _) -> recurse
+    _           -> return ()
 
 
 data HeadPiece = HeadCreated UTCTime
@@ -137,7 +143,6 @@ data HeadPiece = HeadCreated UTCTime
                | HeadWindowLeft Int
                | HeadWindowRight Int
                | HeadWindowTop Int
-               | HeadUnknown
 
 makeTraversals ''HeadPiece
 
@@ -145,76 +150,85 @@ makeTraversals ''HeadPiece
 -- | Parse the @\<head\>@ section.
 -- This function is more lenient than what the standard demands on the following points:
 --
--- - each sub-element may be repeated, in which case only the last occurrence is taken into account;
+-- - each sub-element may be repeated, in which case only the first occurrence is taken into account;
 -- - each unknown sub-element is ignored.
-parseOpmlHead :: (MonadCatch m) => ConduitParser Event m OpmlHead
-parseOpmlHead = named "OPML <head> section" $ tagName "head" ignoreAttrs $ \_ -> do
-  p <- many $ choice piece
-  return $ flip fold p $ OpmlHead
-    <$> handles _HeadTitle (lastDef mempty)
-    <*> handles _HeadCreated last
-    <*> handles _HeadModified last
-    <*> handles _HeadOwnerName (lastDef mempty)
-    <*> handles _HeadOwnerEmail (lastDef mempty)
-    <*> handles _HeadOwnerId last
-    <*> handles _HeadDocs last
-    <*> handles _HeadExpansionState Fold.mconcat
-    <*> handles _HeadVertScrollState last
-    <*> handles _HeadWindowBottom last
-    <*> handles _HeadWindowLeft last
-    <*> handles _HeadWindowRight last
-    <*> handles _HeadWindowTop last
-  where piece = [ HeadCreated <$> dateTag "dateCreated"
-                , HeadModified <$> dateTag "dateModified"
-                , HeadDocs <$> uriTag "docs"
-                , HeadExpansionState <$> expansionStateTag
-                , HeadOwnerEmail <$> textTag "ownerEmail"
-                , HeadOwnerId <$> uriTag "ownerId"
-                , HeadOwnerName <$> textTag "ownerName"
-                , HeadTitle <$> textTag "title"
-                , HeadVertScrollState <$> decimalTag "vertScrollState"
-                , HeadWindowBottom <$> decimalTag "windowBottom"
-                , HeadWindowLeft <$> decimalTag "windowLeft"
-                , HeadWindowRight <$> decimalTag "windowRight"
-                , HeadWindowTop <$> decimalTag "windowTop"
-                , HeadUnknown <$ unknownTag
-                ]
+parseOpmlHead :: (MonadCatch m) => ConduitM Event o m (Maybe OpmlHead)
+parseOpmlHead = tagIgnoreAttrs "head" $ (manyYield' (choose piece) <* many ignoreAllTreesContent) =$= zipConduit where
+  zipConduit = getZipConduit $ OpmlHead
+    <$> ZipConduit (projectC _HeadTitle =$= headDefC mempty)
+    <*> ZipConduit (projectC _HeadCreated =$= headC)
+    <*> ZipConduit (projectC _HeadModified =$= headC)
+    <*> ZipConduit (projectC _HeadOwnerName =$= headDefC mempty)
+    <*> ZipConduit (projectC _HeadOwnerEmail =$= headDefC mempty)
+    <*> ZipConduit (projectC _HeadOwnerId =$= headC)
+    <*> ZipConduit (projectC _HeadDocs =$= headC)
+    <*> ZipConduit (projectC _HeadExpansionState =$= concatC =$= sinkList)
+    <*> ZipConduit (projectC _HeadVertScrollState =$= headC)
+    <*> ZipConduit (projectC _HeadWindowBottom =$= headC)
+    <*> ZipConduit (projectC _HeadWindowLeft =$= headC)
+    <*> ZipConduit (projectC _HeadWindowRight =$= headC)
+    <*> ZipConduit (projectC _HeadWindowTop =$= headC)
+  piece = [ fmap HeadCreated <$> dateTag "dateCreated"
+          , fmap HeadModified <$> dateTag "dateModified"
+          , fmap HeadDocs <$> uriTag "docs"
+          , fmap HeadExpansionState <$> expansionStateTag
+          , fmap HeadOwnerEmail <$> textTag "ownerEmail"
+          , fmap HeadOwnerId <$> uriTag "ownerId"
+          , fmap HeadOwnerName <$> textTag "ownerName"
+          , fmap HeadTitle <$> textTag "title"
+          , fmap HeadVertScrollState <$> decimalTag "vertScrollState"
+          , fmap HeadWindowBottom <$> decimalTag "windowBottom"
+          , fmap HeadWindowLeft <$> decimalTag "windowLeft"
+          , fmap HeadWindowRight <$> decimalTag "windowRight"
+          , fmap HeadWindowTop <$> decimalTag "windowTop"
+          ]
 
 
 -- | Parse an @\<outline\>@ section.
 -- The value of type attributes are not case-sensitive, that is @type=\"LINK\"@ has the same meaning as @type="link"@.
-parseOpmlOutline :: (MonadCatch m) => ConduitParser Event m (Tree OpmlOutline)
-parseOpmlOutline = tagName "outline" attributes handler <?> "OPML <outline> section" where
+parseOpmlOutline :: (MonadCatch m) => ConduitM Event o m (Maybe (Tree OpmlOutline))
+parseOpmlOutline = tagName "outline" attributes handler where
   attributes = do
-    otype <- optional $ textAttr "type"
+    otype <- optional $ requireAttr "type"
     case mk <$> otype of
       Just "include" -> (,,,) otype <$> baseAttr <*> pure Nothing <*> (Just <$> linkAttr) <* ignoreAttrs
       Just "link" -> (,,,) otype <$> baseAttr <*> pure Nothing <*> (Just <$> linkAttr) <* ignoreAttrs
       Just "rss" -> (,,,) otype <$> baseAttr <*> (Just <$> subscriptionAttr) <*> pure Nothing <* ignoreAttrs
       _          -> (,,,) otype <$> baseAttr <*> pure Nothing <*> pure Nothing <* ignoreAttrs
-  baseAttr = (,,,,) <$> attr "text" asNonNull
-                    <*> optional (attr "isComment" asBool)
-                    <*> optional (attr "isBreakpoint" asBool)
-                    <*> optional (attr "created" asTime)
-                    <*> optional (attr "category" (Just . asCategories))
-  linkAttr = textAttr "url"
-  subscriptionAttr = (,,,,,) <$> attr "xmlUrl" asURI
-                             <*> optional (attr "htmlUrl" asURI)
-                             <*> optional (textAttr "description")
-                             <*> optional (textAttr "language")
-                             <*> optional (textAttr "title")
-                             <*> optional (textAttr "version")
+  baseAttr = (,,,,) <$> (requireAttr "text" >>= asNonNull)
+                    <*> optional (requireAttr "isComment" >>= asBool)
+                    <*> optional (requireAttr "isBreakpoint" >>= asBool)
+                    <*> optional (requireAttr "created" >>= asTime)
+                    <*> optional (asCategories <$> requireAttr "category")
+  linkAttr = requireAttr "url"
+  subscriptionAttr = (,,,,,) <$> (requireAttr "xmlUrl" >>= asURI)
+                             <*> optional (requireAttr "htmlUrl" >>= asURI)
+                             <*> optional (requireAttr "description")
+                             <*> optional (requireAttr "language")
+                             <*> optional (requireAttr "title")
+                             <*> optional (requireAttr "version")
   handler (_, b, Just s, _) = Node <$> (OpmlOutlineSubscription <$> baseHandler b <*> pure (subscriptionHandler s)) <*> pure []
   handler (_, b, _, Just l) = Node <$> (OpmlOutlineLink <$> baseHandler b <*> asURI l) <*> pure []
   handler (otype, b, _, _) = Node <$> (OpmlOutlineGeneric <$> baseHandler b <*> pure (fromMaybe mempty otype))
-                                  <*> many parseOpmlOutline
+                                  <*> (manyYield' parseOpmlOutline =$= sinkList)
   baseHandler (txt, comment, breakpoint, created, category) = return $ OutlineBase txt comment breakpoint created (fromMaybe mempty category)
   subscriptionHandler (uri, html, desc, lang, title, version) = OutlineSubscription uri html (fromMaybe mempty desc) (fromMaybe mempty lang) (fromMaybe mempty title) (fromMaybe mempty version)
 
+
+data OpmlDocPiece = DocHead OpmlHead | DocBody [Tree OpmlOutline]
+
+makeTraversals ''OpmlDocPiece
+
+
 -- | Parse the top-level @\<opml\>@ element.
-parseOpml :: (MonadCatch m) => ConduitParser Event m Opml
-parseOpml = tagName "opml" attributes handler <?> "<opml> section" where
-  attributes = attr "version" asVersion <* ignoreAttrs
-  handler version = Opml version
-                      <$> parseOpmlHead
-                      <*> tagName "body" ignoreAttrs (const $ many parseOpmlOutline) <?> "<body> section."
+parseOpml :: (MonadCatch m) => ConduitM Event o m (Maybe Opml)
+parseOpml = tagName "opml" attributes handler where
+  attributes = (requireAttr "version" >>= asVersion) <* ignoreAttrs
+  handler version = (manyYield' (choose piece) <* many ignoreAllTreesContent) =$= zipConduit version
+  zipConduit version = getZipConduit $ Opml version
+    <$> ZipConduit (projectC _DocHead =$= headDefC mkOpmlHead)
+    <*> ZipConduit (projectC _DocBody =$= headDefC mempty)
+  parseOpmlBody = tagIgnoreAttrs "body" $ manyYield' parseOpmlOutline =$= sinkList
+  piece = [ fmap DocHead <$> parseOpmlHead
+          , fmap DocBody <$> parseOpmlBody
+          ]
