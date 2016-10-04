@@ -39,9 +39,8 @@ deriving instance Generic Version
 #endif
 
 -- | OPML version may only be @1.0@, @1.1@ or @2.0@
-instance Arbitrary Version where
-  arbitrary = Version <$> elements [ [1, 0], [1, 1], [2, 0] ] <*> pure []
-  shrink = genericShrink
+genOPMLVersion :: Gen Version
+genOPMLVersion = Version <$> elements [ [1, 0], [1, 1], [2, 0] ] <*> pure []
 
 -- | Reasonable enough 'URI' generator.
 instance Arbitrary URI where
@@ -95,11 +94,9 @@ genTime = do
 
 -- | Generates 'OutlineBase''s categories.
 -- This generator makes sure that the result has no @,@ nor @/@ characters, since those are used as separators.
-instance Arbitrary (NonEmpty (NonNull Text)) where
-  arbitrary = genCategoryPath
-    where genCategory = genNonNull `suchThat` (isNothing . find (\c -> c == ',' || c == '/') . toNullable)
-          genCategoryPath = (:|) <$> genCategory <*> listOf genCategory
-  -- shrink = genericShrink
+genCategoryPath :: Gen (NonEmpty (NonNull Text))
+genCategoryPath = (:|) <$> genCategory <*> listOf genCategory where
+  genCategory = genNonNull `suchThat` (isNothing . find (\c -> c == ',' || c == '/') . toNullable)
 
 -- | Alpha-numeric generator.
 genAlphaNum :: Gen Char
@@ -131,13 +128,12 @@ instance Arbitrary OutlineBase where
                           <*> arbitrary
                           <*> arbitrary
                           <*> (Just <$> genTime)
-                          <*> arbitrary
-  -- shrink = genericShrink
-  shrink (OutlineBase _ b c d e) = OutlineBase <$> []
+                          <*> listOf genCategoryPath
+  shrink (OutlineBase a b c d e) = OutlineBase <$> [a]
                                                <*> shrink b
                                                <*> shrink c
                                                <*> shrink d
-                                               <*> shrink e
+                                               <*> [e]
 
 instance Arbitrary OutlineSubscription where
   arbitrary = OutlineSubscription <$> arbitrary
@@ -158,10 +154,10 @@ instance Arbitrary OpmlOutline where
 instance Arbitrary Opml where
   arbitrary = do
     degree <- choose (0, 100)
-    Opml <$> arbitrary
+    Opml <$> genOPMLVersion
          <*> arbitrary
          <*> vectorOf degree (genOutlineTree 1)
-  shrink = genericShrink
+  shrink (Opml a b c) = Opml <$> [a] <*> shrink b <*> shrink c
 
 -- | Generate a tree of outlines with the given maximum depth.
 -- This generator makes sure that only 'OpmlOutlineGeneric' may have children.
