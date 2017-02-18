@@ -21,7 +21,7 @@ module Text.OPML.Conduit.Parse
 -- {{{ Imports
 import           Conduit                      hiding (throwM)
 
-import           Control.Applicative          hiding(many)
+import           Control.Applicative          hiding (many)
 import           Control.Exception.Safe       as Exception
 import           Control.Monad
 import           Control.Monad.Fix
@@ -106,19 +106,19 @@ asNonNull = maybe (throwM MissingText) return . fromNullable
 asCategories :: Text -> [NonEmpty (NonNull Text)]
 asCategories = mapMaybe (nonEmpty . mapMaybe fromNullable . split (== '/')) . split (== ',')
 
-dateTag :: (MonadThrow m) => Name -> ConduitM Event o m (Maybe UTCTime)
+dateTag :: (MonadThrow m) => NameMatcher a -> ConduitM Event o m (Maybe UTCTime)
 dateTag name = tagIgnoreAttrs name $ content >>= asTime
 
-uriTag :: (MonadThrow m) => Name -> ConduitM Event o m (Maybe URI)
+uriTag :: (MonadThrow m) => NameMatcher a -> ConduitM Event o m (Maybe URI)
 uriTag name = tagIgnoreAttrs name $ content >>= asURI
 
 expansionStateTag :: (MonadThrow m, Integral a) => ConduitM Event o m (Maybe [a])
 expansionStateTag = tagIgnoreAttrs "expansionState" $ content >>= asExpansionState
 
-textTag :: (MonadThrow m) => Name -> ConduitM Event o m (Maybe Text)
+textTag :: (MonadThrow m) => NameMatcher a -> ConduitM Event o m (Maybe Text)
 textTag name = tagIgnoreAttrs name content
 
-decimalTag :: (Integral a, MonadThrow m) => Name -> ConduitM Event o m (Maybe a)
+decimalTag :: (Integral i, MonadThrow m) => NameMatcher a -> ConduitM Event o m (Maybe i)
 decimalTag name = tagIgnoreAttrs name $ content >>= asDecimal
 
 projectC :: Monad m => Fold a a' b b' -> Conduit a m b
@@ -153,7 +153,7 @@ makeTraversals ''HeadPiece
 -- - each sub-element may be repeated, in which case only the first occurrence is taken into account;
 -- - each unknown sub-element is ignored.
 parseOpmlHead :: (MonadCatch m) => ConduitM Event o m (Maybe OpmlHead)
-parseOpmlHead = tagIgnoreAttrs "head" $ (manyYield' (choose piece) <* many ignoreAllTreesContent) =$= zipConduit where
+parseOpmlHead = tagIgnoreAttrs "head" $ (manyYield' (choose piece) <* many ignoreAnyTreeContent) =$= zipConduit where
   zipConduit = getZipConduit $ OpmlHead
     <$> ZipConduit (projectC _HeadTitle =$= headDefC mempty)
     <*> ZipConduit (projectC _HeadCreated =$= headC)
@@ -187,7 +187,7 @@ parseOpmlHead = tagIgnoreAttrs "head" $ (manyYield' (choose piece) <* many ignor
 -- | Parse an @\<outline\>@ section.
 -- The value of type attributes are not case-sensitive, that is @type=\"LINK\"@ has the same meaning as @type="link"@.
 parseOpmlOutline :: (MonadCatch m) => ConduitM Event o m (Maybe (Tree OpmlOutline))
-parseOpmlOutline = tagName "outline" attributes handler where
+parseOpmlOutline = tag' "outline" attributes handler where
   attributes = do
     otype <- optional $ requireAttr "type"
     case mk <$> otype of
@@ -222,9 +222,9 @@ makeTraversals ''OpmlDocPiece
 
 -- | Parse the top-level @\<opml\>@ element.
 parseOpml :: (MonadCatch m) => ConduitM Event o m (Maybe Opml)
-parseOpml = tagName "opml" attributes handler where
+parseOpml = tag' "opml" attributes handler where
   attributes = (requireAttr "version" >>= asVersion) <* ignoreAttrs
-  handler version = (manyYield' (choose piece) <* many ignoreAllTreesContent) =$= zipConduit version
+  handler version = (manyYield' (choose piece) <* many ignoreAnyTreeContent) =$= zipConduit version
   zipConduit version = getZipConduit $ Opml version
     <$> ZipConduit (projectC _DocHead =$= headDefC mkOpmlHead)
     <*> ZipConduit (projectC _DocBody =$= headDefC mempty)
