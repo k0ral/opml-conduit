@@ -7,7 +7,7 @@
 {-# LANGUAGE StandaloneDeriving #-}
 -- | External 'Arbitrary' instances used by OPML types.
 -- All instances are defined through the 'OpmlGen' wrapper to avoid conflicts.
-module Arbitrary where
+module Arbitrary (module Arbitrary) where
 
 -- {{{ Imports
 import           Data.ByteString           (ByteString)

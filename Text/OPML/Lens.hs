@@ -1,7 +1,7 @@
 {-# OPTIONS_GHC -fno-warn-missing-signatures #-}
 {-# LANGUAGE RankNTypes      #-}
 {-# LANGUAGE TemplateHaskell #-}
-module Text.OPML.Lens where
+module Text.OPML.Lens (module Text.OPML.Lens) where
 
 -- {{{ Imports
 import           Lens.Simple
@@ -34,7 +34,7 @@ makeLensesFor
   ] ''OpmlHead
 
 expansionStateL :: Traversal' OpmlHead Int
-expansionStateL inj a@OpmlHead { expansionState = es } = (\x -> a { expansionState = x }) <$> sequenceA (map inj es)
+expansionStateL inj a@OpmlHead { expansionState = es } = (\x -> a { expansionState = x }) <$> traverse inj es
 {-# INLINE expansionStateL #-}
 
 -- * 'OutlineSubscription' lenses
