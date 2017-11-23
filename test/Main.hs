@@ -1,10 +1,12 @@
 {-# LANGUAGE OverloadedLists   #-}
 {-# LANGUAGE OverloadedStrings #-}
 -- {{{ Imports
+import           Text.OPML.Conduit.Parse
+import           Text.OPML.Conduit.Render
+import           Text.OPML.Lens
+
 import           Arbitrary                    ()
-
 import           Control.Monad.Trans.Resource
-
 import           Data.Conduit
 import           Data.Conduit.Combinators     as Conduit (sourceFile)
 import           Data.Default
@@ -12,22 +14,12 @@ import           Data.String
 import           Data.Text.Encoding
 import           Data.Tree
 import           Data.Version
-
-import           Paths_opml_conduit
-
-import qualified Language.Haskell.HLint       as HLint (hlint)
-
 import           Lens.Simple
-
+import           Paths_opml_conduit
 import           Test.Tasty
 import           Test.Tasty.HUnit
 import           Test.Tasty.QuickCheck
-
-import           Text.OPML.Conduit.Parse
-import           Text.OPML.Conduit.Render
-import           Text.OPML.Lens
 import           Text.XML.Stream.Parse        as XML
-
 import           URI.ByteString
 -- }}}
 
@@ -35,7 +27,6 @@ main :: IO ()
 main = defaultMain $ testGroup "Tests"
   [ unitTests
   , properties
-  , hlint
   ]
 
 unitTests :: TestTree
@@ -53,12 +44,6 @@ properties = testGroup "Properties"
   [ inverseHeadProperty
   -- , inverseProperty
   ]
-
-
-hlint :: TestTree
-hlint = testCase "HLint check" $ do
-  result <- HLint.hlint [ "test/", "Text/" ]
-  null result @?= True
 
 
 categoriesCase :: TestTree
