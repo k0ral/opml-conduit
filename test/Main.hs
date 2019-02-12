@@ -49,7 +49,7 @@ properties = testGroup "Properties"
 categoriesCase :: TestTree
 categoriesCase = testCase "Parse categories list" $ do
   dataFile <- fromString <$> getDataFileName "data/category.opml"
-  result <- runResourceT . runConduit $ sourceFile dataFile =$= XML.parseBytes def =$= force "Invalid OPML" parseOpml
+  result <- runResourceT . runConduit $ sourceFile dataFile .| XML.parseBytes def .| force "Invalid OPML" parseOpml
 
   (result ^. opmlVersionL) @?= Version [2,0] []
   (result ^. opmlHeadL . opmlTitleL) @?= "Illustrating the category attribute"
@@ -61,7 +61,7 @@ categoriesCase = testCase "Parse categories list" $ do
 directoryCase :: TestTree
 directoryCase = testCase "Parse directory tree" $ do
   dataFile <- fromString <$> getDataFileName "data/directory.opml"
-  result <- runResourceT . runConduit $ sourceFile dataFile =$= XML.parseBytes def =$= force "Invalid OPML" parseOpml
+  result <- runResourceT . runConduit $ sourceFile dataFile .| XML.parseBytes def .| force "Invalid OPML" parseOpml
 
   (result ^. opmlVersionL) @?= Version [2,0] []
   (result ^. opmlHeadL . opmlTitleL) @?= "scriptingNewsDirectory.opml"
@@ -82,7 +82,7 @@ directoryCase = testCase "Parse directory tree" $ do
 placesCase :: TestTree
 placesCase = testCase "Parse places list" $ do
   dataFile <- fromString <$> getDataFileName "data/placesLived.opml"
-  result <- runResourceT . runConduit $ sourceFile dataFile =$= XML.parseBytes def =$= force "Invalid OPML" parseOpml
+  result <- runResourceT . runConduit $ sourceFile dataFile .| XML.parseBytes def .| force "Invalid OPML" parseOpml
 
   (result ^. opmlVersionL) @?= Version [2,0] []
   (result ^. opmlHeadL . opmlTitleL) @?= "placesLived.opml"
@@ -104,7 +104,7 @@ placesCase = testCase "Parse places list" $ do
 scriptCase :: TestTree
 scriptCase = testCase "Parse script" $ do
   dataFile <- fromString <$> getDataFileName "data/simpleScript.opml"
-  result <- runResourceT . runConduit $ sourceFile dataFile =$= XML.parseBytes def =$= force "Invalid OPML" parseOpml
+  result <- runResourceT . runConduit $ sourceFile dataFile .| XML.parseBytes def .| force "Invalid OPML" parseOpml
 
   (result ^. opmlVersionL) @?= Version [2,0] []
   (result ^. opmlHeadL . opmlTitleL) @?= "workspace.userlandsamples.doSomeUpstreaming"
@@ -125,7 +125,7 @@ scriptCase = testCase "Parse script" $ do
 statesCase :: TestTree
 statesCase = testCase "Parse states list" $ do
   dataFile <- fromString <$> getDataFileName "data/states.opml"
-  result <- runResourceT . runConduit $ sourceFile dataFile =$= XML.parseBytes def =$= force "Invalid OPML" parseOpml
+  result <- runResourceT . runConduit $ sourceFile dataFile .| XML.parseBytes def .| force "Invalid OPML" parseOpml
 
   (result ^. opmlVersionL) @?= Version [2,0] []
   (result ^. opmlHeadL . opmlTitleL) @?= "states.opml"
@@ -146,7 +146,7 @@ statesCase = testCase "Parse states list" $ do
 subscriptionsCase :: TestTree
 subscriptionsCase = testCase "Parse subscriptions list" $ do
   dataFile <- fromString <$> getDataFileName "data/subscriptionList.opml"
-  result <- runResourceT . runConduit $ sourceFile dataFile =$= XML.parseBytes def =$= force "Invalid OPML" parseOpml
+  result <- runResourceT . runConduit $ sourceFile dataFile .| XML.parseBytes def .| force "Invalid OPML" parseOpml
 
   (result ^. opmlVersionL) @?= Version [2,0] []
   (result ^. opmlHeadL . opmlTitleL) @?= "mySubscriptions.opml"
@@ -162,7 +162,7 @@ subscriptionsCase = testCase "Parse subscriptions list" $ do
   length (result ^.. opmlOutlinesL . traverse . traverse . _OpmlOutlineSubscription) @?= 13
 
 inverseHeadProperty :: TestTree
-inverseHeadProperty = testProperty "parse . render = id (on OpmlHead)" $ \opmlHead -> either (const False) (opmlHead ==) (runConduit $ renderOpmlHead opmlHead =$= force "Invalid <head>" parseOpmlHead)
+inverseHeadProperty = testProperty "parse . render = id (on OpmlHead)" $ \opmlHead -> either (const False) (opmlHead ==) (runConduit $ renderOpmlHead opmlHead .| force "Invalid <head>" parseOpmlHead)
 
 -- inverseProperty :: TestTree
--- inverseProperty = testProperty "parse . render = id" $ \opml -> either (const False) (opml ==) (runIdentity . runCatchT . runConduit $ renderOpml opml =$= force "Invalid OPML" parseOpml)
+-- inverseProperty = testProperty "parse . render = id" $ \opml -> either (const False) (opml ==) (runIdentity . runCatchT . runConduit $ renderOpml opml .| force "Invalid OPML" parseOpml)

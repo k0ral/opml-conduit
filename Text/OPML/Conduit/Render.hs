@@ -58,7 +58,7 @@ formatURI :: URI -> Text
 formatURI = decodeUtf8 . serializeURIRef'
 
 -- | Render the @\<head\>@ section.
-renderOpmlHead :: (Monad m) => OpmlHead -> Source m Event
+renderOpmlHead :: (Monad m) => OpmlHead -> ConduitT () Event m ()
 renderOpmlHead input = tag "head" mempty $ do
   forM_ (input^.opmlCreatedL)       $ tag "dateCreated" mempty . content . formatTime
   forM_ (input^.modifiedL)          $ tag "dateModified" mempty . content . formatTime
@@ -79,7 +79,7 @@ renderOpmlHead input = tag "head" mempty $ do
         title = input ^. opmlTitleL
 
 -- | Render an @\<outline\>@ section.
-renderOpmlOutline :: (Monad m) => Tree OpmlOutline -> Source m Event
+renderOpmlOutline :: (Monad m) => Tree OpmlOutline -> ConduitT () Event m ()
 renderOpmlOutline (Node outline subOutlines) = tag "outline" attributes $ mapM_ renderOpmlOutline subOutlines
   where attributes = case outline of
           OpmlOutlineGeneric b t -> baseAttr b <> optionalAttr "type" (toMaybe t)
@@ -99,7 +99,7 @@ renderOpmlOutline (Node outline subOutlines) = tag "outline" attributes $ mapM_ 
                              <> optionalAttr "version" (toMaybe $ s^.subscriptionVersionL)
 
 -- | Render the top-level @\<opml\>@ section.
-renderOpml :: (Monad m) => Opml -> Source m Event
+renderOpml :: Monad m => Opml -> ConduitT () Event m ()
 renderOpml opml = tag "opml" (attr "version" . pack . showVersion $ opml^.opmlVersionL) $ do
   renderOpmlHead $ opml^.opmlHeadL
   tag "body" mempty . mapM_ renderOpmlOutline $ opml^.opmlOutlinesL

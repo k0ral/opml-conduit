@@ -113,7 +113,7 @@ textTag name = tagIgnoreAttrs name content
 decimalTag :: (Integral i, MonadThrow m) => NameMatcher a -> ConduitM Event o m (Maybe i)
 decimalTag name = tagIgnoreAttrs name $ content >>= asDecimal
 
-projectC :: Monad m => Fold a a' b b' -> Conduit a m b
+projectC :: Monad m => Fold a a' b b' -> ConduitT a b m ()
 projectC prism = fix $ \recurse -> do
   item <- await
   case (item, item ^? (_Just . prism)) of
@@ -145,21 +145,21 @@ makeTraversals ''HeadPiece
 -- - each sub-element may be repeated, in which case only the first occurrence is taken into account;
 -- - each unknown sub-element is ignored.
 parseOpmlHead :: (MonadCatch m) => ConduitM Event o m (Maybe OpmlHead)
-parseOpmlHead = tagIgnoreAttrs "head" $ (manyYield' (choose piece) <* many ignoreAnyTreeContent) =$= zipConduit where
+parseOpmlHead = tagIgnoreAttrs "head" $ (manyYield' (choose piece) <* many ignoreAnyTreeContent) .| zipConduit where
   zipConduit = getZipConduit $ OpmlHead
-    <$> ZipConduit (projectC _HeadTitle =$= headDefC mempty)
-    <*> ZipConduit (projectC _HeadCreated =$= headC)
-    <*> ZipConduit (projectC _HeadModified =$= headC)
-    <*> ZipConduit (projectC _HeadOwnerName =$= headDefC mempty)
-    <*> ZipConduit (projectC _HeadOwnerEmail =$= headDefC mempty)
-    <*> ZipConduit (projectC _HeadOwnerId =$= headC)
-    <*> ZipConduit (projectC _HeadDocs =$= headC)
-    <*> ZipConduit (projectC _HeadExpansionState =$= concatC =$= sinkList)
-    <*> ZipConduit (projectC _HeadVertScrollState =$= headC)
-    <*> ZipConduit (projectC _HeadWindowBottom =$= headC)
-    <*> ZipConduit (projectC _HeadWindowLeft =$= headC)
-    <*> ZipConduit (projectC _HeadWindowRight =$= headC)
-    <*> ZipConduit (projectC _HeadWindowTop =$= headC)
+    <$> ZipConduit (projectC _HeadTitle .| headDefC mempty)
+    <*> ZipConduit (projectC _HeadCreated .| headC)
+    <*> ZipConduit (projectC _HeadModified .| headC)
+    <*> ZipConduit (projectC _HeadOwnerName .| headDefC mempty)
+    <*> ZipConduit (projectC _HeadOwnerEmail .| headDefC mempty)
+    <*> ZipConduit (projectC _HeadOwnerId .| headC)
+    <*> ZipConduit (projectC _HeadDocs .| headC)
+    <*> ZipConduit (projectC _HeadExpansionState .| concatC .| sinkList)
+    <*> ZipConduit (projectC _HeadVertScrollState .| headC)
+    <*> ZipConduit (projectC _HeadWindowBottom .| headC)
+    <*> ZipConduit (projectC _HeadWindowLeft .| headC)
+    <*> ZipConduit (projectC _HeadWindowRight .| headC)
+    <*> ZipConduit (projectC _HeadWindowTop .| headC)
   piece = [ fmap HeadCreated <$> dateTag "dateCreated"
           , fmap HeadModified <$> dateTag "dateModified"
           , fmap HeadDocs <$> uriTag "docs"
@@ -202,7 +202,7 @@ parseOpmlOutline = tag' "outline" attributes handler where
   handler (_, b, Just s, _) = Node <$> (OpmlOutlineSubscription <$> baseHandler b <*> pure (subscriptionHandler s)) <*> pure []
   handler (_, b, _, Just l) = Node <$> (OpmlOutlineLink <$> baseHandler b <*> asURI l) <*> pure []
   handler (otype, b, _, _) = Node <$> (OpmlOutlineGeneric <$> baseHandler b <*> pure (fromMaybe mempty otype))
-                                  <*> (manyYield' parseOpmlOutline =$= sinkList)
+                                  <*> (manyYield' parseOpmlOutline .| sinkList)
   baseHandler (txt, comment, breakpoint, created, category) = return $ OutlineBase txt comment breakpoint created (fromMaybe mempty category)
   subscriptionHandler (uri, html, desc, lang, title, version) = OutlineSubscription uri html (fromMaybe mempty desc) (fromMaybe mempty lang) (fromMaybe mempty title) (fromMaybe mempty version)
 
@@ -216,11 +216,11 @@ makeTraversals ''OpmlDocPiece
 parseOpml :: (MonadCatch m) => ConduitM Event o m (Maybe Opml)
 parseOpml = tag' "opml" attributes handler where
   attributes = (requireAttr "version" >>= asVersion) <* ignoreAttrs
-  handler version = (manyYield' (choose piece) <* many ignoreAnyTreeContent) =$= zipConduit version
+  handler version = (manyYield' (choose piece) <* many ignoreAnyTreeContent) .| zipConduit version
   zipConduit version = getZipConduit $ Opml version
-    <$> ZipConduit (projectC _DocHead =$= headDefC mkOpmlHead)
-    <*> ZipConduit (projectC _DocBody =$= headDefC mempty)
-  parseOpmlBody = tagIgnoreAttrs "body" $ manyYield' parseOpmlOutline =$= sinkList
+    <$> ZipConduit (projectC _DocHead .| headDefC mkOpmlHead)
+    <*> ZipConduit (projectC _DocBody .| headDefC mempty)
+  parseOpmlBody = tagIgnoreAttrs "body" $ manyYield' parseOpmlOutline .| sinkList
   piece = [ fmap DocHead <$> parseOpmlHead
           , fmap DocBody <$> parseOpmlBody
           ]
