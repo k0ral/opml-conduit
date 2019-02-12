@@ -16,7 +16,6 @@ import           Control.Monad
 import           Data.Conduit
 import           Data.List.NonEmpty     hiding (filter, map)
 import           Data.Monoid
-import           Data.NonNull
 import           Data.String
 import           Data.Text              (Text, intercalate, pack, toLower)
 import           Data.Text.Encoding
@@ -26,16 +25,13 @@ import           Data.Time.RFC822
 import           Data.Tree
 import           Data.Version
 import           Data.XML.Types
-
 import           Lens.Simple
-
 import           Prelude                hiding (foldr, lookup, show)
 import qualified Prelude                (show)
-
+import           Refined                hiding (NonEmpty)
 import           Text.OPML.Lens
 import           Text.OPML.Types
 import           Text.XML.Stream.Render
-
 import           URI.ByteString
 -- }}}
 
@@ -52,8 +48,8 @@ toMaybe s | s == mempty = mempty
 formatTime :: UTCTime -> Text
 formatTime = formatTimeRFC822 . utcToZonedTime utc
 
-formatCategories :: [NonEmpty (NonNull Text)] -> Maybe Text
-formatCategories = toMaybe . intercalate "," . map (intercalate "/" . toList . fmap toNullable)
+formatCategories :: [NonEmpty (Refined (Not Null) Text)] -> Maybe Text
+formatCategories = toMaybe . intercalate "," . map (intercalate "/" . toList . fmap unrefine)
 
 formatBool :: Bool -> Text
 formatBool = toLower . show
@@ -89,7 +85,7 @@ renderOpmlOutline (Node outline subOutlines) = tag "outline" attributes $ mapM_ 
           OpmlOutlineGeneric b t -> baseAttr b <> optionalAttr "type" (toMaybe t)
           OpmlOutlineLink b uri -> baseAttr b <> attr "type" "link" <> attr "url" (formatURI uri)
           OpmlOutlineSubscription b s -> baseAttr b <> subscriptionAttr s
-        baseAttr b = attr "text" (toNullable $ b^.textL)
+        baseAttr b = attr "text" (unrefine $ b^.textL)
                      <> optionalAttr "isComment" (formatBool <$> b^.isCommentL)
                      <> optionalAttr "isBreakpoint" (formatBool <$> b^.isBreakpointL)
                      <> optionalAttr "created" (formatTime <$> b^.outlineCreatedL)

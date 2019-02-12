@@ -44,7 +44,7 @@ library
     , safe-exceptions
     , lens-simple
     , monoid-subclasses
-    , mono-traversable
+    , refined
     , semigroups
     , text
     , time >= 1.5
@@ -70,12 +70,12 @@ test-suite tests
     , containers
     , data-default
     , lens-simple
-    , mono-traversable
     , mtl
     , opml-conduit
     , parsers
     , QuickCheck
     , quickcheck-instances
+    , refined
     , resourcet
     , semigroups
     , tasty

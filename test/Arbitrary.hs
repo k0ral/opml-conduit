@@ -14,22 +14,15 @@ import           Data.ByteString           (ByteString)
 import           Data.Char
 import           Data.List.NonEmpty
 import           Data.Maybe
-import           Data.MonoTraversable      (Element)
-import           Data.NonNull
-import           Data.Sequences            (SemiSequence)
-import           Data.Text                 (Text, find, pack)
+import           Data.Text                 as Text (Text, find, null, pack)
 import           Data.Text.Encoding
 import           Data.Time.Clock
 import           Data.Tree
 import           Data.Version
-
-import           GHC.Generics
-
+import           Refined                   hiding (NonEmpty)
 import           Test.QuickCheck
 import           Test.QuickCheck.Instances ()
-
 import           Text.OPML.Types
-
 import           URI.ByteString
 -- }}}
 
@@ -94,17 +87,18 @@ genTime = do
 
 -- | Generates 'OutlineBase''s categories.
 -- This generator makes sure that the result has no @,@ nor @/@ characters, since those are used as separators.
-genCategoryPath :: Gen (NonEmpty (NonNull Text))
+genCategoryPath :: Gen (NonEmpty (Refined (Not Null) Text))
 genCategoryPath = (:|) <$> genCategory <*> listOf genCategory where
-  genCategory = genNonNull `suchThat` (isNothing . find (\c -> c == ',' || c == '/') . toNullable)
+  genCategory = arbitrary `suchThat` (isNothing . find (\c -> c == ',' || c == '/') . unrefine)
 
 -- | Alpha-numeric generator.
 genAlphaNum :: Gen Char
 genAlphaNum = oneof [choose('a', 'z'), suchThat arbitrary isDigit]
 
--- | Non-empty mono-foldable
-genNonNull :: (SemiSequence a, Arbitrary (Element a), Arbitrary a) => Gen (NonNull a)
-genNonNull = ncons <$> arbitrary <*> arbitrary
+instance Arbitrary (Refined (Not Null) Text) where
+  arbitrary = do
+    ~(Right t) <- refine <$> arbitrary `suchThat` (not . Text.null)
+    return t
 
 
 instance Arbitrary OpmlHead where
@@ -124,7 +118,7 @@ instance Arbitrary OpmlHead where
   shrink = genericShrink
 
 instance Arbitrary OutlineBase where
-  arbitrary = OutlineBase <$> genNonNull
+  arbitrary = OutlineBase <$> arbitrary
                           <*> arbitrary
                           <*> arbitrary
                           <*> (Just <$> genTime)

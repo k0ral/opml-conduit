@@ -1,6 +1,7 @@
 {-# LANGUAGE DeriveGeneric         #-}
 {-# LANGUAGE FlexibleInstances     #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE OverloadedStrings     #-}
 {-# LANGUAGE StandaloneDeriving    #-}
 -- | OPML is an XML format for outlines.
 --
@@ -31,23 +32,29 @@ module Text.OPML.Types
     -- ** Subscription outlines
   , OutlineSubscription(..)
   , mkOutlineSubscription
+    -- * Others
+  , Null()
   ) where
 
 -- {{{ Imports
 import           Control.Monad
-
 import           Data.List.NonEmpty
-import           Data.NonNull
-import           Data.Text
+import           Data.Text           as Text
 import           Data.Time.Clock
 import           Data.Time.LocalTime ()
 import           Data.Tree
+import           Data.Typeable
 import           Data.Version
-
 import           GHC.Generics
-
+import           Refined             hiding (NonEmpty)
 import           URI.ByteString
 -- }}}
+
+-- | 'Predicate' on 'Text', true iff text is null.
+data Null deriving(Typeable)
+
+instance Predicate Null Text where
+  validate p value = unless (Text.null value) $ throwRefine $ RefineOtherException (typeOf p) "Text is not null"
 
 data OpmlHead = OpmlHead
   { opmlTitle       :: Text
@@ -74,11 +81,11 @@ mkOpmlHead :: OpmlHead
 mkOpmlHead = OpmlHead mempty mzero mzero mempty mempty mzero mzero mzero mzero mzero mzero mzero mzero
 
 data OutlineBase = OutlineBase
-  { text           :: NonNull Text
+  { text           :: Refined (Not Null) Text
   , isComment      :: Maybe Bool
   , isBreakpoint   :: Maybe Bool
   , outlineCreated :: Maybe UTCTime
-  , categories     :: [NonEmpty (NonNull Text)] -- ^
+  , categories     :: [NonEmpty (Refined (Not Null) Text)] -- ^
   }
 
 deriving instance Eq OutlineBase
@@ -87,7 +94,7 @@ deriving instance Show OutlineBase
 
 
 -- | Smart constructor for 'OutlineBase'.
-mkOutlineBase :: NonNull Text -> OutlineBase
+mkOutlineBase :: Refined (Not Null) Text -> OutlineBase
 mkOutlineBase t = OutlineBase t mzero mzero mzero mzero
 
 

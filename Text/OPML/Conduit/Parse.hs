@@ -20,20 +20,18 @@ module Text.OPML.Conduit.Parse
 
 -- {{{ Imports
 import           Conduit                      hiding (throwM)
-
 import           Control.Applicative          hiding (many)
 import           Control.Exception.Safe       as Exception
 import           Control.Monad
 import           Control.Monad.Fix
-
 import           Data.CaseInsensitive         hiding (map)
+import           Data.Either
 import           Data.List.NonEmpty           (NonEmpty, nonEmpty)
 import           Data.Maybe
 import           Data.Monoid
 import           Data.Monoid.Textual          hiding (map)
-import           Data.MonoTraversable
-import           Data.NonNull                 (NonNull, fromNullable)
-import           Data.Text                    (Text, strip, unpack)
+import           Data.Text                    as Text (Text, null, strip,
+                                                       unpack)
 import           Data.Text.Encoding
 import           Data.Time.Clock
 import           Data.Time.LocalTime
@@ -41,13 +39,10 @@ import           Data.Time.RFC822
 import           Data.Tree
 import           Data.Version
 import           Data.XML.Types
-
 import           Lens.Simple
-
 import           Numeric
-
 import           Prelude                      hiding (last)
-
+import           Refined                      hiding (NonEmpty)
 import           Text.OPML.Types
 import           Text.ParserCombinators.ReadP (readP_to_S)
 import           Text.XML.Stream.Parse
@@ -76,18 +71,18 @@ instance Exception OpmlException where
 asURI :: (MonadThrow m) => Text -> m URI
 asURI t = either (throwM . InvalidURI) return . parseURI laxURIParserOptions $ encodeUtf8 t
 
-asVersion :: (MonadThrow m) => Text -> m Version
-asVersion v = case filter (onull . snd) . readP_to_S parseVersion $ unpack v of
+asVersion :: MonadThrow m => Text -> m Version
+asVersion v = case filter (Prelude.null . snd) . readP_to_S parseVersion $ unpack v of
   [(a, "")] -> return a
   _         -> throwM $ InvalidVersion v
 
 asDecimal :: (MonadThrow m, Integral a) => Text -> m a
-asDecimal t = case filter (onull . snd) . readSigned readDec $ unpack t of
+asDecimal t = case filter (Prelude.null . snd) . readSigned readDec $ unpack t of
   (result, _):_ -> return result
   _             -> throwM $ InvalidDecimal t
 
 asExpansionState :: (MonadThrow m, Integral a) => Text -> m [a]
-asExpansionState t = mapM asDecimal . filter (not . onull) . map strip $ split (== ',') t
+asExpansionState t = mapM asDecimal . filter (not . Text.null) . map strip $ split (== ',') t
 
 asTime :: (MonadThrow m) => Text -> m UTCTime
 asTime t = maybe (throwM $ InvalidTime t) (return . zonedTimeToUTC) $ parseTimeRFC822 t
@@ -100,11 +95,8 @@ asBool t
   | mk t == "false" = return False
   | otherwise = throwM $ InvalidBool t
 
-asNonNull :: (MonoFoldable mono, MonadThrow m) => mono -> m (NonNull mono)
-asNonNull = maybe (throwM MissingText) return . fromNullable
-
-asCategories :: Text -> [NonEmpty (NonNull Text)]
-asCategories = mapMaybe (nonEmpty . mapMaybe fromNullable . split (== '/')) . split (== ',')
+asCategories :: Text -> [NonEmpty (Refined (Not Null) Text)]
+asCategories = mapMaybe (nonEmpty . rights . map refine . split (== '/')) . split (== ',')
 
 dateTag :: (MonadThrow m) => NameMatcher a -> ConduitM Event o m (Maybe UTCTime)
 dateTag name = tagIgnoreAttrs name $ content >>= asTime
@@ -195,7 +187,7 @@ parseOpmlOutline = tag' "outline" attributes handler where
       Just "link" -> (,,,) otype <$> baseAttr <*> pure Nothing <*> (Just <$> linkAttr) <* ignoreAttrs
       Just "rss" -> (,,,) otype <$> baseAttr <*> (Just <$> subscriptionAttr) <*> pure Nothing <* ignoreAttrs
       _          -> (,,,) otype <$> baseAttr <*> pure Nothing <*> pure Nothing <* ignoreAttrs
-  baseAttr = (,,,,) <$> (requireAttr "text" >>= asNonNull)
+  baseAttr = (,,,,) <$> (requireAttr "text" >>= refineThrow)
                     <*> optional (requireAttr "isComment" >>= asBool)
                     <*> optional (requireAttr "isBreakpoint" >>= asBool)
                     <*> optional (requireAttr "created" >>= asTime)
