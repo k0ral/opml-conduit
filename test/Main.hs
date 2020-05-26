@@ -14,7 +14,7 @@ import           Data.String
 import           Data.Text.Encoding
 import           Data.Tree
 import           Data.Version
-import           Lens.Simple
+import           Lens.Micro
 import           Paths_opml_conduit
 import           Test.Tasty
 import           Test.Tasty.HUnit
@@ -54,7 +54,7 @@ categoriesCase = testCase "Parse categories list" $ do
   (result ^. opmlVersionL) @?= Version [2,0] []
   (result ^. opmlHeadL . opmlTitleL) @?= "Illustrating the category attribute"
   show (result ^. opmlHeadL . opmlCreatedL) @?= "Just 2005-10-31 19:23:00 UTC"
-  length (result ^.. opmlOutlinesL . traverse . traverse . _OpmlOutlineGeneric) @?= 1
+  length (result ^.. opmlOutlinesL . traverse . traverse . opmlOutlineContentL) @?= 1
   map (map length .levels) (result ^. opmlOutlinesL) @?= [[1]]
 
 
@@ -69,13 +69,13 @@ directoryCase = testCase "Parse directory tree" $ do
   show (result ^. opmlHeadL . modifiedL) @?= "Just 2005-10-25 21:33:57 UTC"
   (result ^. opmlHeadL . ownerNameL) @?= "Dave Winer"
   (result ^. opmlHeadL . ownerEmailL) @?= "dwiner@yahoo.com"
-  (result ^.. opmlHeadL . expansionStateL) @?= []
+  (result ^. opmlHeadL . expansionStateL) @?= []
   (result ^. opmlHeadL . vertScrollStateL) @?= Just 1
   (result ^. opmlHeadL . windowBottomL) @?= Just 386
   (result ^. opmlHeadL . windowLeftL) @?= Just 466
   (result ^. opmlHeadL . windowRightL) @?= Just 964
   (result ^. opmlHeadL . windowTopL) @?= Just 105
-  length (result ^.. opmlOutlinesL . traverse . traverse . _OpmlOutlineLink) @?= 8
+  length (result ^.. opmlOutlinesL . traverse . traverse . opmlOutlineUriL) @?= 8
   map (map length .levels) (result ^. opmlOutlinesL) @?= [[1], [1], [1], [1], [1], [1], [1], [1]]
 
 
@@ -90,14 +90,14 @@ placesCase = testCase "Parse places list" $ do
   show (result ^. opmlHeadL . modifiedL) @?= "Just 2006-02-27 12:11:44 UTC"
   (result ^. opmlHeadL . ownerNameL) @?= "Dave Winer"
   fmap (decodeUtf8 . serializeURIRef') (result ^. opmlHeadL . ownerIdL) @?= Just "http://www.opml.org/profiles/sendMail?usernum=1"
-  (result ^.. opmlHeadL . expansionStateL) @?= [1,2,5,10,13,15]
+  (result ^. opmlHeadL . expansionStateL) @?= [1,2,5,10,13,15]
   (result ^. opmlHeadL . vertScrollStateL) @?= Just 1
   (result ^. opmlHeadL . windowBottomL) @?= Just 665
   (result ^. opmlHeadL . windowLeftL) @?= Just 329
   (result ^. opmlHeadL . windowRightL) @?= Just 547
   (result ^. opmlHeadL . windowTopL) @?= Just 242
-  length (result ^.. opmlOutlinesL . traverse . traverse . _OpmlOutlineGeneric) @?= 18
-  length (result ^.. opmlOutlinesL . traverse . traverse . _OpmlOutlineLink) @?= 1
+  length (result ^.. opmlOutlinesL . traverse . traverse . opmlOutlineContentL) @?= 18
+  length (result ^.. opmlOutlinesL . traverse . traverse . opmlOutlineUriL) @?= 1
   map (map length .levels) (result ^. opmlOutlinesL) @?= [[1,6,12]]
 
 
@@ -112,13 +112,13 @@ scriptCase = testCase "Parse script" $ do
   show (result ^. opmlHeadL . modifiedL) @?= "Just 2005-10-30 03:30:17 UTC"
   (result ^. opmlHeadL . ownerNameL) @?= "Dave Winer"
   (result ^. opmlHeadL . ownerEmailL) @?= "dwiner@yahoo.com"
-  (result ^.. opmlHeadL . expansionStateL) @?= [1, 2, 4]
+  (result ^. opmlHeadL . expansionStateL) @?= [1, 2, 4]
   (result ^. opmlHeadL . vertScrollStateL) @?= Just 1
   (result ^. opmlHeadL . windowBottomL) @?= Just 314
   (result ^. opmlHeadL . windowLeftL) @?= Just 41
   (result ^. opmlHeadL . windowRightL) @?= Just 475
   (result ^. opmlHeadL . windowTopL) @?= Just 74
-  length (result ^.. opmlOutlinesL . traverse . traverse . _OpmlOutlineGeneric) @?= 11
+  length (result ^.. opmlOutlinesL . traverse . traverse . opmlOutlineContentL) @?= 11
   map (map length .levels) (result ^. opmlOutlinesL) @?= [[1,2,2], [1,2], [1], [1,1]]
 
 
@@ -133,13 +133,13 @@ statesCase = testCase "Parse states list" $ do
   show (result ^. opmlHeadL . modifiedL) @?= "Just 2005-07-14 23:41:05 UTC"
   (result ^. opmlHeadL . ownerNameL) @?= "Dave Winer"
   (result ^. opmlHeadL . ownerEmailL) @?= "dave@scripting.com"
-  (result ^.. opmlHeadL . expansionStateL) @?= [1, 6, 13, 16, 18, 20]
+  (result ^. opmlHeadL . expansionStateL) @?= [1, 6, 13, 16, 18, 20]
   (result ^. opmlHeadL . vertScrollStateL) @?= Just 1
   (result ^. opmlHeadL . windowBottomL) @?= Just 558
   (result ^. opmlHeadL . windowLeftL) @?= Just 106
   (result ^. opmlHeadL . windowRightL) @?= Just 479
   (result ^. opmlHeadL . windowTopL) @?= Just 106
-  length (result ^.. opmlOutlinesL . traverse . traverse . _OpmlOutlineGeneric) @?= 63
+  length (result ^.. opmlOutlinesL . traverse . traverse . opmlOutlineContentL) @?= 63
   map (map length .levels) (result ^. opmlOutlinesL) @?= [[1, 8, 50, 4]]
 
 
@@ -159,7 +159,7 @@ subscriptionsCase = testCase "Parse subscriptions list" $ do
   (result ^. opmlHeadL . windowLeftL) @?= Just 304
   (result ^. opmlHeadL . windowRightL) @?= Just 842
   (result ^. opmlHeadL . windowTopL) @?= Just 61
-  length (result ^.. opmlOutlinesL . traverse . traverse . _OpmlOutlineSubscription) @?= 13
+  length (result ^.. opmlOutlinesL . traverse . traverse . opmlOutlineSubscriptionL) @?= 13
 
 inverseHeadProperty :: TestTree
 inverseHeadProperty = testProperty "parse . render = id (on OpmlHead)" $ \opmlHead -> either (const False) (opmlHead ==) (runConduit $ renderOpmlHead opmlHead .| force "Invalid <head>" parseOpmlHead)

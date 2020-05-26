@@ -39,7 +39,8 @@ import           Data.Time.RFC822
 import           Data.Tree
 import           Data.Version
 import           Data.XML.Types
-import           Lens.Simple
+import           Lens.Micro
+import           Lens.Micro.TH
 import           Numeric
 import           Prelude                      hiding (last)
 import           Refined                      hiding (NonEmpty)
@@ -113,7 +114,7 @@ textTag name = tagIgnoreAttrs name content
 decimalTag :: (Integral i, MonadThrow m) => NameMatcher a -> ConduitM Event o m (Maybe i)
 decimalTag name = tagIgnoreAttrs name $ content >>= asDecimal
 
-projectC :: Monad m => Fold a a' b b' -> ConduitT a b m ()
+projectC :: Monad m => Traversal' a b -> ConduitT a b m ()
 projectC prism = fix $ \recurse -> do
   item <- await
   case (item, item ^? (_Just . prism)) of
@@ -122,21 +123,21 @@ projectC prism = fix $ \recurse -> do
     _           -> return ()
 
 
-data HeadPiece = HeadCreated UTCTime
-               | HeadModified UTCTime
-               | HeadDocs URI
-               | HeadExpansionState [Int]
-               | HeadOwnerEmail Text
-               | HeadOwnerId URI
-               | HeadOwnerName Text
-               | HeadTitle Text
-               | HeadVertScrollState Int
-               | HeadWindowBottom Int
-               | HeadWindowLeft Int
-               | HeadWindowRight Int
-               | HeadWindowTop Int
+data HeadPiece = HeadCreated { __headCreated :: UTCTime }
+               | HeadModified { __headModified :: UTCTime }
+               | HeadDocs { __headDocs :: URI }
+               | HeadExpansionState { __headExpansionState :: [Int] }
+               | HeadOwnerEmail { __headOwnerEmail :: Text }
+               | HeadOwnerId { __headOwnerId :: URI }
+               | HeadOwnerName { __headOwnerName :: Text }
+               | HeadTitle { __headTitle :: Text }
+               | HeadVertScrollState { __headVertScrollState :: Int }
+               | HeadWindowBottom { __headWindowBottom :: Int }
+               | HeadWindowLeft { __headWindowLeft :: Int }
+               | HeadWindowRight { __headWindowRight :: Int }
+               | HeadWindowTop { __headWindowTop :: Int }
 
-makeTraversals ''HeadPiece
+makeLenses ''HeadPiece
 
 
 -- | Parse the @\<head\>@ section.
@@ -147,19 +148,19 @@ makeTraversals ''HeadPiece
 parseOpmlHead :: (MonadCatch m) => ConduitM Event o m (Maybe OpmlHead)
 parseOpmlHead = tagIgnoreAttrs "head" $ (manyYield' (choose piece) <* many ignoreAnyTreeContent) .| zipConduit where
   zipConduit = getZipConduit $ OpmlHead
-    <$> ZipConduit (projectC _HeadTitle .| headDefC mempty)
-    <*> ZipConduit (projectC _HeadCreated .| headC)
-    <*> ZipConduit (projectC _HeadModified .| headC)
-    <*> ZipConduit (projectC _HeadOwnerName .| headDefC mempty)
-    <*> ZipConduit (projectC _HeadOwnerEmail .| headDefC mempty)
-    <*> ZipConduit (projectC _HeadOwnerId .| headC)
-    <*> ZipConduit (projectC _HeadDocs .| headC)
-    <*> ZipConduit (projectC _HeadExpansionState .| concatC .| sinkList)
-    <*> ZipConduit (projectC _HeadVertScrollState .| headC)
-    <*> ZipConduit (projectC _HeadWindowBottom .| headC)
-    <*> ZipConduit (projectC _HeadWindowLeft .| headC)
-    <*> ZipConduit (projectC _HeadWindowRight .| headC)
-    <*> ZipConduit (projectC _HeadWindowTop .| headC)
+    <$> ZipConduit (projectC _headTitle .| headDefC mempty)
+    <*> ZipConduit (projectC _headCreated .| headC)
+    <*> ZipConduit (projectC _headModified .| headC)
+    <*> ZipConduit (projectC _headOwnerName .| headDefC mempty)
+    <*> ZipConduit (projectC _headOwnerEmail .| headDefC mempty)
+    <*> ZipConduit (projectC _headOwnerId .| headC)
+    <*> ZipConduit (projectC _headDocs .| headC)
+    <*> ZipConduit (projectC _headExpansionState .| concatC .| sinkList)
+    <*> ZipConduit (projectC _headVertScrollState .| headC)
+    <*> ZipConduit (projectC _headWindowBottom .| headC)
+    <*> ZipConduit (projectC _headWindowLeft .| headC)
+    <*> ZipConduit (projectC _headWindowRight .| headC)
+    <*> ZipConduit (projectC _headWindowTop .| headC)
   piece = [ fmap HeadCreated <$> dateTag "dateCreated"
           , fmap HeadModified <$> dateTag "dateModified"
           , fmap HeadDocs <$> uriTag "docs"
@@ -207,9 +208,10 @@ parseOpmlOutline = tag' "outline" attributes handler where
   subscriptionHandler (uri, html, desc, lang, title, version) = OutlineSubscription uri html (fromMaybe mempty desc) (fromMaybe mempty lang) (fromMaybe mempty title) (fromMaybe mempty version)
 
 
-data OpmlDocPiece = DocHead OpmlHead | DocBody [Tree OpmlOutline]
+data OpmlDocPiece = DocHead { __docHead :: OpmlHead }
+                  | DocBody { __docBody :: [Tree OpmlOutline] }
 
-makeTraversals ''OpmlDocPiece
+makeLenses ''OpmlDocPiece
 
 
 -- | Parse the top-level @\<opml\>@ element.
@@ -218,8 +220,8 @@ parseOpml = tag' "opml" attributes handler where
   attributes = (requireAttr "version" >>= asVersion) <* ignoreAttrs
   handler version = (manyYield' (choose piece) <* many ignoreAnyTreeContent) .| zipConduit version
   zipConduit version = getZipConduit $ Opml version
-    <$> ZipConduit (projectC _DocHead .| headDefC mkOpmlHead)
-    <*> ZipConduit (projectC _DocBody .| headDefC mempty)
+    <$> ZipConduit (projectC _docHead .| headDefC mkOpmlHead)
+    <*> ZipConduit (projectC _docBody .| headDefC mempty)
   parseOpmlBody = tagIgnoreAttrs "body" $ manyYield' parseOpmlOutline .| sinkList
   piece = [ fmap DocHead <$> parseOpmlHead
           , fmap DocBody <$> parseOpmlBody

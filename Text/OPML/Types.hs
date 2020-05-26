@@ -118,9 +118,9 @@ mkOutlineSubscription uri = OutlineSubscription uri mzero mempty mempty mempty m
 
 
 -- | Outlines are the main payload of an OPML document.
-data OpmlOutline = OpmlOutlineGeneric OutlineBase Text
-                 | OpmlOutlineLink OutlineBase URI
-                 | OpmlOutlineSubscription OutlineBase OutlineSubscription
+data OpmlOutline = OpmlOutlineGeneric { opmlOutlineBase :: OutlineBase, opmlOutlineContent :: Text }
+                 | OpmlOutlineLink { opmlOutlineBase :: OutlineBase, opmlOutlineUri :: URI }
+                 | OpmlOutlineSubscription { opmlOutlineBase :: OutlineBase, opmlOutlineSubscription :: OutlineSubscription }
 
 deriving instance Eq OpmlOutline
 deriving instance Generic OpmlOutline

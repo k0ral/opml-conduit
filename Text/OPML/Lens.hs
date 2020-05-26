@@ -4,7 +4,7 @@
 module Text.OPML.Lens (module Text.OPML.Lens) where
 
 -- {{{ Imports
-import           Lens.Simple
+import           Lens.Micro.TH
 
 import           Text.OPML.Types
 -- }}}
@@ -25,17 +25,13 @@ makeLensesFor
   , ("ownerEmail", "ownerEmailL")
   , ("ownerId", "ownerIdL")
   , ("docs", "docsL")
-  -- , ("expansionState", "expansionStateL")
+  , ("expansionState", "expansionStateL")
   , ("vertScrollState", "vertScrollStateL")
   , ("windowBottom", "windowBottomL")
   , ("windowLeft", "windowLeftL")
   , ("windowRight", "windowRightL")
   , ("windowTop", "windowTopL")
   ] ''OpmlHead
-
-expansionStateL :: Traversal' OpmlHead Int
-expansionStateL inj a@OpmlHead { expansionState = es } = (\x -> a { expansionState = x }) <$> traverse inj es
-{-# INLINE expansionStateL #-}
 
 -- * 'OutlineSubscription' lenses
 makeLensesFor
@@ -57,5 +53,10 @@ makeLensesFor
   ] ''OutlineBase
 
 
--- * 'OpmlOutline' traversals
-makeTraversals ''OpmlOutline
+-- * 'OpmlOutline' lenses
+makeLensesFor
+  [ ("opmlOutlineBase", "opmlOutlineBaseL")
+  , ("opmlOutlineContent", "opmlOutlineContentL")
+  , ("opmlOutlineUri", "opmlOutlineUriL")
+  , ("opmlOutlineSubscription", "opmlOutlineSubscriptionL")
+  ] ''OpmlOutline

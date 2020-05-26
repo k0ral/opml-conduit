@@ -42,7 +42,8 @@ library
     , conduit-combinators
     , containers
     , safe-exceptions
-    , lens-simple
+    , microlens
+    , microlens-th
     , monoid-subclasses
     , refined >= 0.2
     , semigroups
@@ -69,7 +70,7 @@ test-suite tests
     , conduit-combinators
     , containers
     , data-default
-    , lens-simple
+    , microlens
     , mtl
     , opml-conduit
     , parsers

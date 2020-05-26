@@ -25,7 +25,7 @@ import           Data.Time.RFC822
 import           Data.Tree
 import           Data.Version
 import           Data.XML.Types
-import           Lens.Simple
+import           Lens.Micro
 import           Prelude                hiding (foldr, lookup, show)
 import qualified Prelude                (show)
 import           Refined                hiding (NonEmpty)
@@ -73,7 +73,7 @@ renderOpmlHead input = tag "head" mempty $ do
   forM_ (input^.windowLeftL)        $ tag "windowLeft" mempty . content . show
   forM_ (input^.windowRightL)       $ tag "windowRight" mempty . content . show
   forM_ (input^.windowTopL)         $ tag "windowTop" mempty . content . show
-  where es = input ^.. expansionStateL
+  where es = input ^. expansionStateL
         email = input ^. ownerEmailL
         name = input ^. ownerNameL
         title = input ^. opmlTitleL
