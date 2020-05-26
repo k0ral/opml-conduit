@@ -30,8 +30,7 @@ import           Data.List.NonEmpty           (NonEmpty, nonEmpty)
 import           Data.Maybe
 import           Data.Monoid
 import           Data.Monoid.Textual          hiding (map)
-import           Data.Text                    as Text (Text, null, strip,
-                                                       unpack)
+import           Data.Text                    as Text (Text, null, strip, unpack)
 import           Data.Text.Encoding
 import           Data.Time.Clock
 import           Data.Time.LocalTime
@@ -62,11 +61,11 @@ deriving instance Eq OpmlException
 deriving instance Show OpmlException
 
 instance Exception OpmlException where
-  displayException MissingText = "An outline is missing the 'text' attribute."
-  displayException (InvalidBool t) = "Invalid boolean: " ++ unpack t
+  displayException MissingText        = "An outline is missing the 'text' attribute."
+  displayException (InvalidBool t)    = "Invalid boolean: " ++ unpack t
   displayException (InvalidDecimal t) = "Invalid decimal: " ++ unpack t
-  displayException (InvalidURI e) = "Invalid URI: " ++ show e
-  displayException (InvalidTime t) = "Invalid time: " ++ unpack t
+  displayException (InvalidURI e)     = "Invalid URI: " ++ show e
+  displayException (InvalidTime t)    = "Invalid time: " ++ unpack t
   displayException (InvalidVersion t) = "Invalid version: " ++ unpack t
 
 asURI :: (MonadThrow m) => Text -> m URI
@@ -185,9 +184,9 @@ parseOpmlOutline = tag' "outline" attributes handler where
     otype <- optional $ requireAttr "type"
     case mk <$> otype of
       Just "include" -> (,,,) otype <$> baseAttr <*> pure Nothing <*> (Just <$> linkAttr) <* ignoreAttrs
-      Just "link" -> (,,,) otype <$> baseAttr <*> pure Nothing <*> (Just <$> linkAttr) <* ignoreAttrs
-      Just "rss" -> (,,,) otype <$> baseAttr <*> (Just <$> subscriptionAttr) <*> pure Nothing <* ignoreAttrs
-      _          -> (,,,) otype <$> baseAttr <*> pure Nothing <*> pure Nothing <* ignoreAttrs
+      Just "link"    -> (,,,) otype <$> baseAttr <*> pure Nothing <*> (Just <$> linkAttr) <* ignoreAttrs
+      Just "rss"     -> (,,,) otype <$> baseAttr <*> (Just <$> subscriptionAttr) <*> pure Nothing <* ignoreAttrs
+      _              -> (,,,) otype <$> baseAttr <*> pure Nothing <*> pure Nothing <* ignoreAttrs
   baseAttr = (,,,,) <$> (requireAttr "text" >>= refineThrow)
                     <*> optional (requireAttr "isComment" >>= asBool)
                     <*> optional (requireAttr "isBreakpoint" >>= asBool)

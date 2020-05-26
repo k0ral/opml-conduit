@@ -82,8 +82,8 @@ renderOpmlHead input = tag "head" mempty $ do
 renderOpmlOutline :: (Monad m) => Tree OpmlOutline -> ConduitT () Event m ()
 renderOpmlOutline (Node outline subOutlines) = tag "outline" attributes $ mapM_ renderOpmlOutline subOutlines
   where attributes = case outline of
-          OpmlOutlineGeneric b t -> baseAttr b <> optionalAttr "type" (toMaybe t)
-          OpmlOutlineLink b uri -> baseAttr b <> attr "type" "link" <> attr "url" (formatURI uri)
+          OpmlOutlineGeneric b t      -> baseAttr b <> optionalAttr "type" (toMaybe t)
+          OpmlOutlineLink b uri       -> baseAttr b <> attr "type" "link" <> attr "url" (formatURI uri)
           OpmlOutlineSubscription b s -> baseAttr b <> subscriptionAttr s
         baseAttr b = attr "text" (unrefine $ b^.textL)
                      <> optionalAttr "isComment" (formatBool <$> b^.isCommentL)
