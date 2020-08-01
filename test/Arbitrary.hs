@@ -14,7 +14,7 @@ import           Data.ByteString           (ByteString)
 import           Data.Char
 import           Data.List.NonEmpty
 import           Data.Maybe
-import           Data.Text                 as Text (Text, find, null, pack)
+import           Data.Text                 as Text (Text, find, pack)
 import           Data.Text.Encoding
 import           Data.Time.Clock
 import           Data.Tree
@@ -94,11 +94,6 @@ genCategoryPath = (:|) <$> genCategory <*> listOf genCategory where
 -- | Alpha-numeric generator.
 genAlphaNum :: Gen Char
 genAlphaNum = oneof [choose('a', 'z'), suchThat arbitrary isDigit]
-
-instance Arbitrary (Refined (Not Null) Text) where
-  arbitrary = do
-    ~(Right t) <- refine <$> arbitrary `suchThat` (not . Text.null)
-    return t
 
 
 instance Arbitrary OpmlHead where

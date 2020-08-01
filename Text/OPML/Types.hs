@@ -54,7 +54,9 @@ import           URI.ByteString
 data Null deriving(Typeable)
 
 instance Predicate Null Text where
-  validate p value = unless (Text.null value) $ throwRefine $ RefineOtherException (typeOf p) "Text is not null"
+  validate p value = if not $ Text.null value
+    then pure $ RefineOtherException (typeOf p) "Text is not null"
+    else Nothing
 
 data OpmlHead = OpmlHead
   { opmlTitle       :: Text
